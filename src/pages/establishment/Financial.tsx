@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { DollarSign, TrendingUp, Truck, Calendar } from 'lucide-react';
+import { DollarSign, Truck, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -14,8 +14,7 @@ interface DeliveryRow {
   customer_name: string;
   delivery_fee: number;
   delivered_at: string;
-  establishment_name: string;
-  net: number;
+  driver_name: string;
 }
 
 interface WeeklyReport {
@@ -29,13 +28,13 @@ interface WeeklyReport {
   status: string;
 }
 
-const DriverEarnings = () => {
+const EstablishmentFinancial = () => {
   const { user } = useAuth();
-  const [earnings, setEarnings] = useState({ today: 0, week: 0, month: 0, total: 0, deliveries: 0 });
   const [feePercent, setFeePercent] = useState(10);
   const [deliveryList, setDeliveryList] = useState<DeliveryRow[]>([]);
   const [weeklyReports, setWeeklyReports] = useState<WeeklyReport[]>([]);
-  const [period, setPeriod] = useState('week');
+  const [period, setPeriod] = useState('month');
+  const [totals, setTotals] = useState({ spent: 0, count: 0 });
 
   useEffect(() => {
     if (!user) return;
@@ -43,109 +42,101 @@ const DriverEarnings = () => {
   }, [user]);
 
   const loadData = async () => {
-    const { data: driver } = await supabase.from('drivers').select('id').eq('user_id', user!.id).single();
-    if (!driver) return;
+    const { data: est } = await supabase.from('establishments').select('id').eq('user_id', user!.id).single();
+    if (!est) return;
 
     const { data: settings } = await supabase.from('app_settings').select('value').eq('key', 'platform_fee_percentage').single();
-    const fee = Number(settings?.value ?? 10);
-    setFeePercent(fee);
+    setFeePercent(Number(settings?.value ?? 10));
 
-    // Completed deliveries
     const { data: deliveries } = await supabase
       .from('deliveries')
-      .select('id, customer_name, delivery_fee, delivered_at, establishment_id')
-      .eq('driver_id', driver.id)
+      .select('id, customer_name, delivery_fee, delivered_at, driver_id')
+      .eq('establishment_id', est.id)
       .eq('status', 'completed')
       .order('delivered_at', { ascending: false });
 
     if (!deliveries) return;
 
-    // Get establishment names
-    const estIds = [...new Set(deliveries.map(d => d.establishment_id))];
-    const { data: ests } = await supabase.from('establishments').select('id, business_name').in('id', estIds.length > 0 ? estIds : ['x']);
-    const estMap = new Map(ests?.map(e => [e.id, e.business_name]) ?? []);
-
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekStart = new Date(todayStart);
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    let today = 0, week = 0, month = 0, total = 0;
-    const list: DeliveryRow[] = [];
-
-    for (const d of deliveries) {
-      const net = Number(d.delivery_fee) * (1 - fee / 100);
-      const date = new Date(d.delivered_at ?? '');
-      total += net;
-      if (date >= todayStart) today += net;
-      if (date >= weekStart) week += net;
-      if (date >= monthStart) month += net;
-
-      list.push({
-        id: d.id,
-        customer_name: d.customer_name,
-        delivery_fee: Number(d.delivery_fee),
-        delivered_at: d.delivered_at ?? '',
-        establishment_name: estMap.get(d.establishment_id) ?? 'Desconhecido',
-        net,
-      });
+    // Get driver names
+    const driverIds = [...new Set(deliveries.filter(d => d.driver_id).map(d => d.driver_id!))];
+    let driverNames: Record<string, string> = {};
+    if (driverIds.length > 0) {
+      const { data: drivers } = await supabase.from('drivers').select('id, user_id').in('id', driverIds);
+      if (drivers && drivers.length > 0) {
+        const userIds = drivers.map(d => d.user_id);
+        const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
+        const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) ?? []);
+        for (const d of drivers) {
+          driverNames[d.id] = profileMap.get(d.user_id) ?? 'Entregador';
+        }
+      }
     }
 
-    setEarnings({ today, week, month, total, deliveries: deliveries.length });
+    const list: DeliveryRow[] = deliveries.map(d => ({
+      id: d.id,
+      customer_name: d.customer_name,
+      delivery_fee: Number(d.delivery_fee),
+      delivered_at: d.delivered_at ?? '',
+      driver_name: d.driver_id ? (driverNames[d.driver_id] ?? 'Entregador') : '-',
+    }));
+
     setDeliveryList(list);
+    setTotals({
+      spent: list.reduce((a, d) => a + d.delivery_fee, 0),
+      count: list.length,
+    });
 
     // Weekly reports
     const { data: reports } = await supabase
       .from('financial_weekly_reports')
       .select('*')
-      .eq('entity_type', 'driver')
-      .eq('entity_id', driver.id)
+      .eq('entity_type', 'establishment')
+      .eq('entity_id', est.id)
       .order('week_start', { ascending: false });
 
     setWeeklyReports(reports ?? []);
   };
 
   const filteredDeliveries = deliveryList.filter(d => {
+    if (period === 'all') return true;
     const date = new Date(d.delivered_at);
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const weekStart = new Date(todayStart);
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    if (period === 'today') return date >= todayStart;
     if (period === 'week') return date >= weekStart;
     if (period === 'month') return date >= monthStart;
     return true;
   });
 
+  const periodTotal = filteredDeliveries.reduce((a, d) => a + d.delivery_fee, 0);
+
   return (
     <div className="p-4 space-y-6 pb-24">
-      <h1 className="text-2xl font-bold">Meus Ganhos</h1>
+      <h1 className="text-2xl font-bold">Financeiro</h1>
 
       <div className="grid grid-cols-2 gap-3">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Hoje</CardTitle></CardHeader>
-          <CardContent><p className="text-xl font-bold">R$ {earnings.today.toFixed(2)}</p></CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total Gasto</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-xl font-bold flex items-center gap-1">
+              <DollarSign className="h-4 w-4 text-primary" />R$ {totals.spent.toFixed(2)}
+            </p>
+          </CardContent>
         </Card>
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Semana</CardTitle></CardHeader>
-          <CardContent><p className="text-xl font-bold">R$ {earnings.week.toFixed(2)}</p></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Mês</CardTitle></CardHeader>
-          <CardContent><p className="text-xl font-bold">R$ {earnings.month.toFixed(2)}</p></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total</CardTitle></CardHeader>
-          <CardContent><p className="text-xl font-bold flex items-center gap-1"><DollarSign className="h-4 w-4 text-primary" />R$ {earnings.total.toFixed(2)}</p></CardContent>
+          <CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Entregas</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-xl font-bold flex items-center gap-1">
+              <Truck className="h-4 w-4 text-primary" />{totals.count}
+            </p>
+          </CardContent>
         </Card>
       </div>
 
       <p className="text-xs text-muted-foreground text-center">Taxa da plataforma: {feePercent}%</p>
 
-      {/* Delivery list */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Entregas</h2>
@@ -154,7 +145,6 @@ const DriverEarnings = () => {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="today">Hoje</SelectItem>
               <SelectItem value="week">Semana</SelectItem>
               <SelectItem value="month">Mês</SelectItem>
               <SelectItem value="all">Tudo</SelectItem>
@@ -168,9 +158,9 @@ const DriverEarnings = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Data</TableHead>
-                  <TableHead>Estabelecimento</TableHead>
-                  <TableHead className="text-right">Bruto</TableHead>
-                  <TableHead className="text-right">Líquido</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Entregador</TableHead>
+                  <TableHead className="text-right">Valor</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -179,9 +169,9 @@ const DriverEarnings = () => {
                     <TableCell className="text-xs">
                       {d.delivered_at ? format(new Date(d.delivered_at), 'dd/MM HH:mm', { locale: ptBR }) : '-'}
                     </TableCell>
-                    <TableCell className="text-xs">{d.establishment_name}</TableCell>
-                    <TableCell className="text-right text-xs">R$ {d.delivery_fee.toFixed(2)}</TableCell>
-                    <TableCell className="text-right text-xs font-medium">R$ {d.net.toFixed(2)}</TableCell>
+                    <TableCell className="text-xs">{d.customer_name}</TableCell>
+                    <TableCell className="text-xs">{d.driver_name}</TableCell>
+                    <TableCell className="text-right text-xs font-medium">R$ {d.delivery_fee.toFixed(2)}</TableCell>
                   </TableRow>
                 ))}
                 {filteredDeliveries.length === 0 && (
@@ -195,9 +185,9 @@ const DriverEarnings = () => {
             </Table>
           </CardContent>
         </Card>
+        <p className="text-xs text-muted-foreground text-right">Total no período: R$ {periodTotal.toFixed(2)}</p>
       </div>
 
-      {/* Weekly reports */}
       {weeklyReports.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -211,10 +201,10 @@ const DriverEarnings = () => {
                     <p className="text-sm font-medium">
                       {format(new Date(r.week_start + 'T00:00:00'), 'dd/MM', { locale: ptBR })} - {format(new Date(r.week_end + 'T00:00:00'), 'dd/MM', { locale: ptBR })}
                     </p>
-                    <p className="text-xs text-muted-foreground">{r.total_deliveries} entregas</p>
+                    <p className="text-xs text-muted-foreground">{r.total_deliveries} entregas · Taxa: R$ {r.platform_fee.toFixed(2)}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-bold">R$ {r.net_payout.toFixed(2)}</p>
+                    <p className="text-lg font-bold">R$ {r.total_value.toFixed(2)}</p>
                     <Badge variant={r.status === 'paid' ? 'default' : 'secondary'} className="text-xs">
                       {r.status === 'paid' ? 'Pago' : 'Pendente'}
                     </Badge>
@@ -229,4 +219,4 @@ const DriverEarnings = () => {
   );
 };
 
-export default DriverEarnings;
+export default EstablishmentFinancial;
