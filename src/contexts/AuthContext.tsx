@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -31,29 +31,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<AppRole | null>(null);
   const [status, setStatus] = useState<ApprovalStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const initialized = useRef(false);
 
   const fetchUserMeta = async (userId: string) => {
-    const [roleRes, statusRes] = await Promise.all([
-      supabase.from('user_roles').select('role').eq('user_id', userId).single(),
-      supabase.from('profiles').select('status').eq('user_id', userId).single(),
-    ]);
-    setRole((roleRes.data?.role as AppRole) ?? null);
-    setStatus((statusRes.data?.status as ApprovalStatus) ?? null);
+    try {
+      const [roleRes, statusRes] = await Promise.all([
+        supabase.from('user_roles').select('role').eq('user_id', userId).single(),
+        supabase.from('profiles').select('status').eq('user_id', userId).single(),
+      ]);
+      setRole((roleRes.data?.role as AppRole) ?? null);
+      setStatus((statusRes.data?.status as ApprovalStatus) ?? null);
+    } catch (err) {
+      console.error('Error fetching user meta:', err);
+      setRole(null);
+      setStatus(null);
+    }
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchUserMeta(session.user.id);
-      } else {
-        setRole(null);
-        setStatus(null);
-      }
-      setLoading(false);
-    });
-
+    // First: restore session from storage
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -61,7 +57,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await fetchUserMeta(session.user.id);
       }
       setLoading(false);
+      initialized.current = true;
     });
+
+    // Then: listen for subsequent auth changes (sign in/out)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        // Skip the initial event — already handled by getSession
+        if (!initialized.current) return;
+
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          // Fire and forget — don't await inside callback
+          fetchUserMeta(session.user.id);
+        } else {
+          setRole(null);
+          setStatus(null);
+        }
+      }
+    );
 
     return () => subscription.unsubscribe();
   }, []);
