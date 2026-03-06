@@ -104,6 +104,51 @@ export type Database = {
           },
         ]
       }
+      delivery_offers: {
+        Row: {
+          created_at: string
+          delivery_id: string
+          driver_id: string
+          id: string
+          offered_at: string
+          responded_at: string | null
+          status: Database["public"]["Enums"]["delivery_offer_status"]
+        }
+        Insert: {
+          created_at?: string
+          delivery_id: string
+          driver_id: string
+          id?: string
+          offered_at?: string
+          responded_at?: string | null
+          status?: Database["public"]["Enums"]["delivery_offer_status"]
+        }
+        Update: {
+          created_at?: string
+          delivery_id?: string
+          driver_id?: string
+          id?: string
+          offered_at?: string
+          responded_at?: string | null
+          status?: Database["public"]["Enums"]["delivery_offer_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_offers_delivery_id_fkey"
+            columns: ["delivery_id"]
+            isOneToOne: false
+            referencedRelation: "deliveries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "delivery_offers_driver_id_fkey"
+            columns: ["driver_id"]
+            isOneToOne: false
+            referencedRelation: "drivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       drivers: {
         Row: {
           cpf: string
@@ -112,6 +157,7 @@ export type Database = {
           is_online: boolean
           phone: string
           plate: string | null
+          queue_joined_at: string | null
           updated_at: string
           user_id: string
           vehicle_type: Database["public"]["Enums"]["vehicle_type"]
@@ -123,6 +169,7 @@ export type Database = {
           is_online?: boolean
           phone: string
           plate?: string | null
+          queue_joined_at?: string | null
           updated_at?: string
           user_id: string
           vehicle_type: Database["public"]["Enums"]["vehicle_type"]
@@ -134,6 +181,7 @@ export type Database = {
           is_online?: boolean
           phone?: string
           plate?: string | null
+          queue_joined_at?: string | null
           updated_at?: string
           user_id?: string
           vehicle_type?: Database["public"]["Enums"]["vehicle_type"]
@@ -357,6 +405,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "establishment" | "driver"
       approval_status: "pending" | "approved" | "rejected" | "suspended"
+      delivery_offer_status: "pending" | "accepted" | "rejected" | "expired"
       delivery_status:
         | "searching"
         | "accepted"
@@ -496,6 +545,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "establishment", "driver"],
       approval_status: ["pending", "approved", "rejected", "suspended"],
+      delivery_offer_status: ["pending", "accepted", "rejected", "expired"],
       delivery_status: [
         "searching",
         "accepted",
