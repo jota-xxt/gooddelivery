@@ -176,6 +176,51 @@ export type Database = {
         }
         Relationships: []
       }
+      financial_weekly_reports: {
+        Row: {
+          created_at: string
+          entity_id: string
+          entity_type: Database["public"]["Enums"]["financial_entity_type"]
+          id: string
+          net_payout: number
+          platform_fee: number
+          status: Database["public"]["Enums"]["report_payment_status"]
+          total_deliveries: number
+          total_value: number
+          user_id: string
+          week_end: string
+          week_start: string
+        }
+        Insert: {
+          created_at?: string
+          entity_id: string
+          entity_type: Database["public"]["Enums"]["financial_entity_type"]
+          id?: string
+          net_payout?: number
+          platform_fee?: number
+          status?: Database["public"]["Enums"]["report_payment_status"]
+          total_deliveries?: number
+          total_value?: number
+          user_id: string
+          week_end: string
+          week_start: string
+        }
+        Update: {
+          created_at?: string
+          entity_id?: string
+          entity_type?: Database["public"]["Enums"]["financial_entity_type"]
+          id?: string
+          net_payout?: number
+          platform_fee?: number
+          status?: Database["public"]["Enums"]["report_payment_status"]
+          total_deliveries?: number
+          total_value?: number
+          user_id?: string
+          week_end?: string
+          week_start?: string
+        }
+        Relationships: []
+      }
       notifications: {
         Row: {
           created_at: string
@@ -319,6 +364,8 @@ export type Database = {
         | "delivering"
         | "completed"
         | "cancelled"
+      financial_entity_type: "establishment" | "driver"
+      report_payment_status: "pending" | "paid"
       vehicle_type: "motorcycle" | "bicycle" | "car"
     }
     CompositeTypes: {
@@ -457,6 +504,8 @@ export const Constants = {
         "completed",
         "cancelled",
       ],
+      financial_entity_type: ["establishment", "driver"],
+      report_payment_status: ["pending", "paid"],
       vehicle_type: ["motorcycle", "bicycle", "car"],
     },
   },
