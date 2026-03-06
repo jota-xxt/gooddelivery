@@ -26,6 +26,7 @@ import DriverProfile from "./pages/driver/Profile";
 import EstablishmentLayout from "./layouts/EstablishmentLayout";
 import EstablishmentOrders from "./pages/establishment/Orders";
 import EstablishmentHistory from "./pages/establishment/History";
+import EstablishmentFinancial from "./pages/establishment/Financial";
 import EstablishmentProfile from "./pages/establishment/Profile";
 
 const queryClient = new QueryClient();
@@ -81,6 +82,7 @@ const App = () => (
             <Route path="/establishment" element={<EstablishmentLayout />}>
               <Route index element={<EstablishmentOrders />} />
               <Route path="history" element={<EstablishmentHistory />} />
+              <Route path="financial" element={<EstablishmentFinancial />} />
               <Route path="profile" element={<EstablishmentProfile />} />
             </Route>
 
