@@ -21,6 +21,7 @@ import AdminCancellations from "./pages/admin/Cancellations";
 
 import DriverLayout from "./layouts/DriverLayout";
 import DriverHome from "./pages/driver/Home";
+import DriverHistory from "./pages/driver/History";
 import DriverEarnings from "./pages/driver/Earnings";
 import DriverProfile from "./pages/driver/Profile";
 
