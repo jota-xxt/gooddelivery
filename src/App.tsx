@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import RoleGuard from "@/components/RoleGuard";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -64,7 +65,11 @@ const App = () => (
             <Route path="/register" element={<Register />} />
             <Route path="/pending-approval" element={<PendingApproval />} />
 
-            <Route path="/admin" element={<AdminLayout />}>
+            <Route path="/admin" element={
+              <RoleGuard allowedRoles={['admin']}>
+                <AdminLayout />
+              </RoleGuard>
+            }>
               <Route index element={<AdminDashboard />} />
               <Route path="approvals" element={<AdminApprovals />} />
               <Route path="users" element={<AdminUsers />} />
@@ -73,13 +78,21 @@ const App = () => (
               <Route path="cancellations" element={<AdminCancellations />} />
             </Route>
 
-            <Route path="/driver" element={<DriverLayout />}>
+            <Route path="/driver" element={
+              <RoleGuard allowedRoles={['driver']}>
+                <DriverLayout />
+              </RoleGuard>
+            }>
               <Route index element={<DriverHome />} />
               <Route path="earnings" element={<DriverEarnings />} />
               <Route path="profile" element={<DriverProfile />} />
             </Route>
 
-            <Route path="/establishment" element={<EstablishmentLayout />}>
+            <Route path="/establishment" element={
+              <RoleGuard allowedRoles={['establishment']}>
+                <EstablishmentLayout />
+              </RoleGuard>
+            }>
               <Route index element={<EstablishmentOrders />} />
               <Route path="history" element={<EstablishmentHistory />} />
               <Route path="financial" element={<EstablishmentFinancial />} />
