@@ -38,63 +38,74 @@ const Register = () => {
     if (!userType) return;
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-          phone,
-          role: userType,
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName,
+            phone,
+            role: userType,
+          },
         },
-      },
-    });
-
-    if (error) {
-      toast.error(error.message);
-      setLoading(false);
-      return;
-    }
-
-    const userId = data.user?.id;
-    if (!userId) {
-      toast.error('Erro ao criar conta');
-      setLoading(false);
-      return;
-    }
-
-    if (userType === 'driver') {
-      const { error: driverError } = await supabase.from('drivers').insert({
-        user_id: userId,
-        cpf,
-        phone,
-        vehicle_type: vehicleType as 'motorcycle' | 'bicycle' | 'car',
-        plate: plate || null,
       });
-      if (driverError) {
-        toast.error('Erro ao salvar dados do entregador');
+
+      if (error) {
+        toast.error(error.message);
         setLoading(false);
         return;
       }
-    } else {
-      const { error: estError } = await supabase.from('establishments').insert({
-        user_id: userId,
-        business_name: businessName,
-        cnpj,
-        address,
-        phone,
-        responsible_name: fullName,
-      });
-      if (estError) {
-        toast.error('Erro ao salvar dados do estabelecimento');
+
+      const userId = data.user?.id;
+      if (!userId) {
+        toast.error('Erro ao criar conta');
         setLoading(false);
         return;
       }
-    }
 
-    setLoading(false);
-    toast.success('Conta criada! Aguarde aprovação do administrador.');
-    navigate('/pending-approval');
+      // Small delay to ensure auth session is fully established
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      if (userType === 'driver') {
+        const { error: driverError } = await supabase.from('drivers').insert({
+          user_id: userId,
+          cpf,
+          phone,
+          vehicle_type: vehicleType as 'motorcycle' | 'bicycle' | 'car',
+          plate: plate || null,
+        });
+        if (driverError) {
+          console.error('Driver insert error:', driverError);
+          toast.error('Erro ao salvar dados do entregador: ' + driverError.message);
+          setLoading(false);
+          return;
+        }
+      } else {
+        const { error: estError } = await supabase.from('establishments').insert({
+          user_id: userId,
+          business_name: businessName,
+          cnpj,
+          address,
+          phone,
+          responsible_name: fullName,
+        });
+        if (estError) {
+          console.error('Establishment insert error:', estError);
+          toast.error('Erro ao salvar dados do estabelecimento: ' + estError.message);
+          setLoading(false);
+          return;
+        }
+      }
+
+      toast.success('Conta criada! Aguarde aprovação do administrador.');
+      navigate('/pending-approval');
+    } catch (err) {
+      console.error('Registration error:', err);
+      toast.error('Erro inesperado ao cadastrar. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (step === 'type') {
