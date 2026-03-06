@@ -62,7 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Then: listen for subsequent auth changes (sign in/out)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      async (_event, session) => {
         // Skip the initial event — already handled by getSession
         if (!initialized.current) return;
 
@@ -70,8 +70,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          // Fire and forget — don't await inside callback
-          fetchUserMeta(session.user.id);
+          setLoading(true);
+          await fetchUserMeta(session.user.id);
+          setLoading(false);
         } else {
           setRole(null);
           setStatus(null);
