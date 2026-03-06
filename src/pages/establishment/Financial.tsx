@@ -42,10 +42,10 @@ const EstablishmentFinancial = () => {
   }, [user]);
 
   const loadData = async () => {
-    const { data: est } = await supabase.from('establishments').select('id').eq('user_id', user!.id).single();
+    const { data: est } = await supabase.from('establishments').select('id').eq('user_id', user!.id).maybeSingle();
     if (!est) return;
 
-    const { data: settings } = await supabase.from('app_settings').select('value').eq('key', 'platform_fee_percentage').single();
+    const { data: settings } = await supabase.from('app_settings').select('value').eq('key', 'platform_fee_percentage').maybeSingle();
     setFeePercent(Number(settings?.value ?? 10));
 
     const { data: deliveries } = await supabase

@@ -11,7 +11,7 @@ const AdminSettings = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.from('app_settings').select('value').eq('key', 'platform_fee_percentage').single()
+    supabase.from('app_settings').select('value').eq('key', 'platform_fee_percentage').maybeSingle()
       .then(({ data }) => { if (data) setFee(data.value); });
   }, []);
 

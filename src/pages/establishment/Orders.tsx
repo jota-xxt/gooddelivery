@@ -39,7 +39,7 @@ const EstablishmentOrders = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from('establishments').select('id').eq('user_id', user.id).single()
+    supabase.from('establishments').select('id').eq('user_id', user.id).maybeSingle()
       .then(({ data }) => { if (data) setEstablishmentId(data.id); });
   }, [user]);
 

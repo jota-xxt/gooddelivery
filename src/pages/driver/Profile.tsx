@@ -13,9 +13,9 @@ const DriverProfile = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from('profiles').select('full_name, phone').eq('user_id', user.id).single()
+    supabase.from('profiles').select('full_name, phone').eq('user_id', user.id).maybeSingle()
       .then(({ data }) => setProfile(data));
-    supabase.from('drivers').select('vehicle_type, cpf').eq('user_id', user.id).single()
+    supabase.from('drivers').select('vehicle_type, cpf').eq('user_id', user.id).maybeSingle()
       .then(({ data }) => setDriver(data));
     supabase.from('ratings').select('rating').eq('to_user_id', user.id)
       .then(({ data }) => {

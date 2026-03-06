@@ -34,7 +34,7 @@ const DriverHome = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from('drivers').select('id, is_online').eq('user_id', user.id).single()
+    supabase.from('drivers').select('id, is_online').eq('user_id', user.id).maybeSingle()
       .then(({ data }) => {
         if (data) {
           setDriverId(data.id);
@@ -57,7 +57,7 @@ const DriverHome = () => {
       .maybeSingle();
 
     if (active) {
-      const { data: est } = await supabase.from('establishments').select('business_name, address').eq('id', active.establishment_id).single();
+      const { data: est } = await supabase.from('establishments').select('business_name, address').eq('id', active.establishment_id).maybeSingle();
       setActiveDelivery({ ...active, establishment_name: est?.business_name, establishment_address: est?.address });
       setAvailableDeliveries([]);
       return;
