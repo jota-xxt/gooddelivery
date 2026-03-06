@@ -85,6 +85,7 @@ const App = () => (
               </RoleGuard>
             }>
               <Route index element={<DriverHome />} />
+              <Route path="history" element={<DriverHistory />} />
               <Route path="earnings" element={<DriverEarnings />} />
               <Route path="profile" element={<DriverProfile />} />
             </Route>
