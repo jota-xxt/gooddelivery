@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,15 +11,19 @@ import { Truck } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
+  const { user, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Redirect if already logged in
+  if (!loading && user) return <Navigate to="/" replace />;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
+    setSubmitting(false);
     if (error) {
       toast.error(error.message);
     } else {
@@ -60,8 +65,8 @@ const Login = () => {
                 required
               />
             </div>
-            <Button type="submit" className="w-full font-semibold" disabled={loading}>
-              {loading ? 'Entrando...' : 'Entrar'}
+            <Button type="submit" className="w-full font-semibold" disabled={submitting}>
+              {submitting ? 'Entrando...' : 'Entrar'}
             </Button>
           </form>
           <div className="mt-6 text-center text-sm text-muted-foreground">

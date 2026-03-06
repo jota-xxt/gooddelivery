@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useDeliveryActions } from '@/hooks/useDeliveryActions';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,7 @@ const AdminCancellations = () => {
   const [deliveries, setDeliveries] = useState<DeliveryRow[]>([]);
   const [cancelReason, setCancelReason] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { cancelDelivery, loading } = useDeliveryActions();
 
   useEffect(() => {
     supabase
@@ -33,15 +35,12 @@ const AdminCancellations = () => {
 
   const handleCancel = async () => {
     if (!selectedId) return;
-    const { error } = await supabase
-      .from('deliveries')
-      .update({ status: 'cancelled', cancelled_at: new Date().toISOString(), cancel_reason: cancelReason })
-      .eq('id', selectedId);
-    if (error) { toast.error('Erro ao cancelar'); return; }
-    toast.success('Entrega cancelada');
-    setDeliveries((prev) => prev.filter((d) => d.id !== selectedId));
-    setSelectedId(null);
-    setCancelReason('');
+    const ok = await cancelDelivery(selectedId, cancelReason || undefined);
+    if (ok) {
+      setDeliveries((prev) => prev.filter((d) => d.id !== selectedId));
+      setSelectedId(null);
+      setCancelReason('');
+    }
   };
 
   const statusLabel: Record<string, string> = {
@@ -81,8 +80,8 @@ const AdminCancellations = () => {
                         <Label>Motivo do cancelamento</Label>
                         <Input value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="Descreva o motivo..." />
                       </div>
-                      <Button variant="destructive" className="w-full" onClick={handleCancel}>
-                        Confirmar Cancelamento
+                      <Button variant="destructive" className="w-full" onClick={handleCancel} disabled={loading}>
+                        {loading ? 'Cancelando...' : 'Confirmar Cancelamento'}
                       </Button>
                     </div>
                   </DialogContent>

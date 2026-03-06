@@ -22,7 +22,7 @@ const EstablishmentHistory = () => {
   useEffect(() => {
     if (!user) return;
     const fetch = async () => {
-      const { data: est } = await supabase.from('establishments').select('id').eq('user_id', user.id).single();
+      const { data: est } = await supabase.from('establishments').select('id').eq('user_id', user.id).maybeSingle();
       if (!est) return;
       const { data } = await supabase
         .from('deliveries')

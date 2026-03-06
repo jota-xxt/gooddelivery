@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +15,7 @@ type VehicleType = 'motorcycle' | 'bicycle';
 
 const Register = () => {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [step, setStep] = useState(0);
   const [userType, setUserType] = useState<UserType | null>(null);
   const [loading, setLoading] = useState(false);
@@ -138,6 +140,9 @@ const Register = () => {
       setLoading(false);
     }
   };
+
+  // Redirect if already logged in
+  if (!authLoading && user) return <Navigate to="/" replace />;
 
   const totalSteps = 3;
   const progress = ((step + 1) / totalSteps) * 100;

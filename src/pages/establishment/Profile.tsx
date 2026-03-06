@@ -12,7 +12,7 @@ const EstablishmentProfile = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from('establishments').select('business_name, cnpj, address, phone').eq('user_id', user.id).single()
+    supabase.from('establishments').select('business_name, cnpj, address, phone').eq('user_id', user.id).maybeSingle()
       .then(({ data }) => setEstablishment(data));
     supabase.from('ratings').select('rating').eq('to_user_id', user.id)
       .then(({ data }) => {

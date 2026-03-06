@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -31,56 +31,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<AppRole | null>(null);
   const [status, setStatus] = useState<ApprovalStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const initialized = useRef(false);
 
   const fetchUserMeta = async (userId: string) => {
     try {
       const [roleRes, statusRes] = await Promise.all([
-        supabase.from('user_roles').select('role').eq('user_id', userId).single(),
-        supabase.from('profiles').select('status').eq('user_id', userId).single(),
+        supabase.from('user_roles').select('role').eq('user_id', userId).maybeSingle(),
+        supabase.from('profiles').select('status').eq('user_id', userId).maybeSingle(),
       ]);
-      setRole((roleRes.data?.role as AppRole) ?? null);
-      setStatus((statusRes.data?.status as ApprovalStatus) ?? null);
+      return {
+        role: (roleRes.data?.role as AppRole) ?? null,
+        status: (statusRes.data?.status as ApprovalStatus) ?? null,
+      };
     } catch (err) {
       console.error('Error fetching user meta:', err);
-      setRole(null);
-      setStatus(null);
+      return { role: null, status: null };
     }
   };
 
   useEffect(() => {
-    // First: restore session from storage
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchUserMeta(session.user.id);
+    let isMounted = true;
+    // Track which user ID we've already fetched meta for to avoid duplicates
+    let lastFetchedUserId: string | null = null;
+
+    const handleSession = async (newSession: Session | null) => {
+      if (!isMounted) return;
+
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
+
+      const userId = newSession?.user?.id;
+      if (userId && userId !== lastFetchedUserId) {
+        lastFetchedUserId = userId;
+        const meta = await fetchUserMeta(userId);
+        if (!isMounted) return;
+        setRole(meta.role);
+        setStatus(meta.status);
+      } else if (!userId) {
+        lastFetchedUserId = null;
+        setRole(null);
+        setStatus(null);
       }
-      setLoading(false);
-      initialized.current = true;
-    });
 
-    // Then: listen for subsequent auth changes (sign in/out)
+      if (isMounted) setLoading(false);
+    };
+
+    // Set up listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        // Skip the initial event — already handled by getSession
-        if (!initialized.current) return;
-
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          setLoading(true);
-          await fetchUserMeta(session.user.id);
-          setLoading(false);
-        } else {
-          setRole(null);
-          setStatus(null);
-        }
+      (_event, newSession) => {
+        handleSession(newSession);
       }
     );
 
-    return () => subscription.unsubscribe();
+    // Then restore session — the onAuthStateChange INITIAL_SESSION event
+    // will fire and be handled by the listener above.
+    // As a fallback, also call getSession:
+    supabase.auth.getSession().then(({ data: { session: restoredSession } }) => {
+      // Only use this if loading is still true (listener hasn't fired yet)
+      if (isMounted && loading) {
+        handleSession(restoredSession);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {

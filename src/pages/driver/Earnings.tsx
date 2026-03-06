@@ -43,10 +43,10 @@ const DriverEarnings = () => {
   }, [user]);
 
   const loadData = async () => {
-    const { data: driver } = await supabase.from('drivers').select('id').eq('user_id', user!.id).single();
+    const { data: driver } = await supabase.from('drivers').select('id').eq('user_id', user!.id).maybeSingle();
     if (!driver) return;
 
-    const { data: settings } = await supabase.from('app_settings').select('value').eq('key', 'platform_fee_percentage').single();
+    const { data: settings } = await supabase.from('app_settings').select('value').eq('key', 'platform_fee_percentage').maybeSingle();
     const fee = Number(settings?.value ?? 10);
     setFeePercent(fee);
 
