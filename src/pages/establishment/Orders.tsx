@@ -123,6 +123,23 @@ const EstablishmentOrders = () => {
       return;
     }
 
+    // Trigger queue processing if in queue mode
+    // Get the newly created delivery ID from the latest searching delivery
+    const { data: newDelivery } = await supabase
+      .from('deliveries')
+      .select('id')
+      .eq('establishment_id', establishmentId)
+      .eq('status', 'searching')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (newDelivery) {
+      supabase.functions.invoke('process-delivery-queue', {
+        body: { delivery_id: newDelivery.id },
+      }).catch(() => {}); // Fire and forget - queue processing is best-effort
+    }
+
     toast.success('Entrega solicitada! Buscando entregador...');
     setDialogOpen(false);
     setCustomerName('');
