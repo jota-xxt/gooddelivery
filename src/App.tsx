@@ -2,11 +2,54 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import PendingApproval from "./pages/PendingApproval";
 import NotFound from "./pages/NotFound";
 
+import AdminLayout from "./layouts/AdminLayout";
+import AdminDashboard from "./pages/admin/Dashboard";
+import AdminApprovals from "./pages/admin/Approvals";
+import AdminUsers from "./pages/admin/Users";
+import AdminFinancial from "./pages/admin/Financial";
+import AdminSettings from "./pages/admin/Settings";
+import AdminCancellations from "./pages/admin/Cancellations";
+
+import DriverLayout from "./layouts/DriverLayout";
+import DriverHome from "./pages/driver/Home";
+import DriverEarnings from "./pages/driver/Earnings";
+import DriverProfile from "./pages/driver/Profile";
+
+import EstablishmentLayout from "./layouts/EstablishmentLayout";
+import EstablishmentOrders from "./pages/establishment/Orders";
+import EstablishmentHistory from "./pages/establishment/History";
+import EstablishmentProfile from "./pages/establishment/Profile";
+
 const queryClient = new QueryClient();
+
+const ProtectedRoutes = () => {
+  const { user, role, status, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!user) return <Navigate to="/login" replace />;
+  if (status !== 'approved') return <Navigate to="/pending-approval" replace />;
+
+  if (role === 'admin') return <Navigate to="/admin" replace />;
+  if (role === 'driver') return <Navigate to="/driver" replace />;
+  if (role === 'establishment') return <Navigate to="/establishment" replace />;
+
+  return <Navigate to="/login" replace />;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -14,11 +57,37 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/pending-approval" element={<PendingApproval />} />
+
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="approvals" element={<AdminApprovals />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="financial" element={<AdminFinancial />} />
+              <Route path="settings" element={<AdminSettings />} />
+              <Route path="cancellations" element={<AdminCancellations />} />
+            </Route>
+
+            <Route path="/driver" element={<DriverLayout />}>
+              <Route index element={<DriverHome />} />
+              <Route path="earnings" element={<DriverEarnings />} />
+              <Route path="profile" element={<DriverProfile />} />
+            </Route>
+
+            <Route path="/establishment" element={<EstablishmentLayout />}>
+              <Route index element={<EstablishmentOrders />} />
+              <Route path="history" element={<EstablishmentHistory />} />
+              <Route path="profile" element={<EstablishmentProfile />} />
+            </Route>
+
+            <Route path="/" element={<ProtectedRoutes />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
