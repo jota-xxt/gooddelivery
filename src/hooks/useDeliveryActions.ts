@@ -48,5 +48,11 @@ export const useDeliveryActions = () => {
     return ok;
   };
 
-  return { acceptDelivery, advanceDelivery, cancelDelivery, loading };
+  const rejectDelivery = async (deliveryId: string) => {
+    const ok = await invokeAction(deliveryId, 'reject');
+    if (ok) toast.info('Corrida rejeitada');
+    return ok;
+  };
+
+  return { acceptDelivery, advanceDelivery, cancelDelivery, rejectDelivery, loading };
 };

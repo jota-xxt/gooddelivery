@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDeliveryActions } from '@/hooks/useDeliveryActions';
@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { MapPin, DollarSign, Navigation, Clock, Loader2, Store, Package, CheckCircle2, Power, Truck, Radio } from 'lucide-react';
+import { MapPin, DollarSign, Navigation, Clock, Loader2, Store, Package, CheckCircle2, Power, Truck, Radio, ListOrdered, X, Timer } from 'lucide-react';
 
 interface DeliveryWithEstablishment {
   id: string;
@@ -23,6 +23,14 @@ interface DeliveryWithEstablishment {
   establishment_address?: string;
 }
 
+interface DeliveryOffer {
+  id: string;
+  delivery_id: string;
+  offered_at: string;
+  status: string;
+  delivery?: DeliveryWithEstablishment;
+}
+
 const DriverHome = () => {
   const { user } = useAuth();
   const { acceptDelivery, advanceDelivery, loading: actionLoading } = useDeliveryActions();
@@ -33,25 +41,34 @@ const DriverHome = () => {
   const [togglingOnline, setTogglingOnline] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [todayStats, setTodayStats] = useState({ deliveries: 0, earnings: 0 });
+  const [deliveryMode, setDeliveryMode] = useState<'pool' | 'queue'>('pool');
+  const [queuePosition, setQueuePosition] = useState<number | null>(null);
+  const [currentOffer, setCurrentOffer] = useState<DeliveryOffer | null>(null);
+  const [offerTimer, setOfferTimer] = useState(60);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [rejectingOffer, setRejectingOffer] = useState(false);
 
+  // Load driver + delivery mode
   useEffect(() => {
     if (!user) return;
-    supabase.from('drivers').select('id, is_online').eq('user_id', user.id).maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setDriverId(data.id);
-          setIsOnline(data.is_online);
-        }
-        setInitialLoading(false);
-      });
+    Promise.all([
+      supabase.from('drivers').select('id, is_online').eq('user_id', user.id).maybeSingle(),
+      supabase.from('app_settings').select('value').eq('key', 'delivery_mode').maybeSingle(),
+    ]).then(([{ data: driverData }, { data: modeData }]) => {
+      if (driverData) {
+        setDriverId(driverData.id);
+        setIsOnline(driverData.is_online);
+      }
+      if (modeData) setDeliveryMode(modeData.value as 'pool' | 'queue');
+      setInitialLoading(false);
+    });
   }, [user]);
 
-  // Load today's stats
+  // Today's stats
   useEffect(() => {
     if (!driverId) return;
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-
     supabase
       .from('deliveries')
       .select('delivery_fee')
@@ -67,6 +84,86 @@ const DriverHome = () => {
         }
       });
   }, [driverId, activeDelivery]);
+
+  // Queue position
+  const fetchQueuePosition = useCallback(async () => {
+    if (!driverId || deliveryMode !== 'queue' || !isOnline) {
+      setQueuePosition(null);
+      return;
+    }
+    const { data: drivers } = await supabase
+      .from('drivers')
+      .select('id')
+      .eq('is_online', true)
+      .not('queue_joined_at', 'is', null)
+      .order('queue_joined_at', { ascending: true });
+
+    if (drivers) {
+      const pos = drivers.findIndex(d => d.id === driverId);
+      setQueuePosition(pos >= 0 ? pos + 1 : null);
+    }
+  }, [driverId, deliveryMode, isOnline]);
+
+  // Fetch offer for queue mode
+  const fetchCurrentOffer = useCallback(async () => {
+    if (!driverId || deliveryMode !== 'queue') {
+      setCurrentOffer(null);
+      return;
+    }
+
+    // Use any type since delivery_offers is new and not in generated types yet
+    const { data } = await supabase
+      .from('delivery_offers' as any)
+      .select('id, delivery_id, offered_at, status')
+      .eq('driver_id', driverId)
+      .eq('status', 'pending')
+      .order('offered_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data) {
+      // Fetch delivery details
+      const { data: del } = await supabase
+        .from('deliveries')
+        .select('id, customer_name, delivery_address, delivery_fee, status, prep_time_minutes, establishment_id, created_at, accepted_at')
+        .eq('id', (data as any).delivery_id)
+        .maybeSingle();
+
+      let delivery: DeliveryWithEstablishment | undefined;
+      if (del) {
+        const { data: est } = await supabase.from('establishments').select('business_name, address').eq('id', del.establishment_id).maybeSingle();
+        delivery = { ...del, establishment_name: est?.business_name, establishment_address: est?.address };
+      }
+
+      setCurrentOffer({ ...(data as any), delivery });
+    } else {
+      setCurrentOffer(null);
+    }
+  }, [driverId, deliveryMode]);
+
+  // Offer timer countdown
+  useEffect(() => {
+    if (!currentOffer) {
+      setOfferTimer(60);
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
+
+    const updateTimer = () => {
+      const elapsed = Math.floor((Date.now() - new Date(currentOffer.offered_at).getTime()) / 1000);
+      const remaining = Math.max(0, 60 - elapsed);
+      setOfferTimer(remaining);
+      if (remaining === 0) {
+        setCurrentOffer(null);
+        if (timerRef.current) clearInterval(timerRef.current);
+        fetchCurrentOffer();
+      }
+    };
+
+    updateTimer();
+    timerRef.current = setInterval(updateTimer, 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [currentOffer, fetchCurrentOffer]);
 
   const fetchDeliveries = useCallback(async () => {
     if (!driverId) return;
@@ -87,6 +184,13 @@ const DriverHome = () => {
     }
     setActiveDelivery(null);
 
+    if (deliveryMode === 'queue') {
+      fetchQueuePosition();
+      fetchCurrentOffer();
+      return;
+    }
+
+    // Pool mode
     if (isOnline) {
       const { data: pool } = await supabase
         .from('deliveries')
@@ -110,17 +214,33 @@ const DriverHome = () => {
     } else {
       setAvailableDeliveries([]);
     }
-  }, [driverId, isOnline]);
+  }, [driverId, isOnline, deliveryMode, fetchQueuePosition, fetchCurrentOffer]);
 
   useEffect(() => {
     fetchDeliveries();
     if (!driverId) return;
-    const channel = supabase
+
+    const channels: ReturnType<typeof supabase.channel>[] = [];
+
+    const deliveriesChannel = supabase
       .channel('deliveries-pool')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => fetchDeliveries())
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [driverId, isOnline, fetchDeliveries]);
+    channels.push(deliveriesChannel);
+
+    if (deliveryMode === 'queue') {
+      const offersChannel = supabase
+        .channel('delivery-offers')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_offers' }, () => {
+          fetchCurrentOffer();
+          fetchQueuePosition();
+        })
+        .subscribe();
+      channels.push(offersChannel);
+    }
+
+    return () => { channels.forEach(c => supabase.removeChannel(c)); };
+  }, [driverId, isOnline, deliveryMode, fetchDeliveries, fetchCurrentOffer, fetchQueuePosition]);
 
   const toggleOnline = async () => {
     if (!driverId || togglingOnline) return;
@@ -130,7 +250,14 @@ const DriverHome = () => {
     }
     setTogglingOnline(true);
     const newStatus = !isOnline;
-    const { error } = await supabase.from('drivers').update({ is_online: newStatus }).eq('id', driverId);
+    const updateData: Record<string, unknown> = { is_online: newStatus };
+    if (newStatus && deliveryMode === 'queue') {
+      updateData.queue_joined_at = new Date().toISOString();
+    }
+    if (!newStatus) {
+      updateData.queue_joined_at = null;
+    }
+    const { error } = await supabase.from('drivers').update(updateData as any).eq('id', driverId);
     setTogglingOnline(false);
     if (error) { toast.error('Erro ao alterar status'); return; }
     setIsOnline(newStatus);
@@ -139,7 +266,30 @@ const DriverHome = () => {
 
   const handleAccept = async (deliveryId: string) => {
     const ok = await acceptDelivery(deliveryId);
-    if (ok) fetchDeliveries();
+    if (ok) {
+      setCurrentOffer(null);
+      fetchDeliveries();
+    }
+  };
+
+  const handleRejectOffer = async () => {
+    if (!currentOffer) return;
+    setRejectingOffer(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('update-delivery-status', {
+        body: { delivery_id: currentOffer.delivery_id, action: 'reject' },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || 'Erro ao rejeitar');
+      } else {
+        toast.info('Corrida rejeitada. Aguardando próxima...');
+        setCurrentOffer(null);
+      }
+    } catch {
+      toast.error('Erro inesperado');
+    } finally {
+      setRejectingOffer(false);
+    }
   };
 
   const handleAdvance = async () => {
@@ -192,7 +342,9 @@ const DriverHome = () => {
               {isOnline ? 'Você está online' : 'Você está offline'}
             </p>
             <p className={`text-sm ${isOnline ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-              {isOnline ? 'Recebendo corridas' : 'Ative para receber corridas'}
+              {isOnline
+                ? deliveryMode === 'queue' ? 'Modo fila ativo' : 'Recebendo corridas'
+                : 'Ative para receber corridas'}
             </p>
           </div>
           <div className="relative">
@@ -323,8 +475,107 @@ const DriverHome = () => {
           </Card>
         )}
 
-        {/* Pool */}
-        {!activeDelivery && isOnline && (
+        {/* Queue mode: offer card */}
+        {!activeDelivery && isOnline && deliveryMode === 'queue' && currentOffer?.delivery && (
+          <Card className="border-2 border-primary overflow-hidden animate-in fade-in">
+            <div className="bg-primary px-4 py-2 flex items-center justify-between">
+              <p className="text-sm font-semibold text-primary-foreground">Nova Corrida Para Você!</p>
+              <div className="flex items-center gap-1.5">
+                <Timer className="h-4 w-4 text-primary-foreground" />
+                <span className={`text-lg font-bold text-primary-foreground ${offerTimer <= 10 ? 'animate-pulse' : ''}`}>
+                  {offerTimer}s
+                </span>
+              </div>
+            </div>
+            <CardContent className="py-4 space-y-4">
+              {/* Timer progress bar */}
+              <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-1000 ${offerTimer <= 10 ? 'bg-destructive' : 'bg-primary'}`}
+                  style={{ width: `${(offerTimer / 60) * 100}%` }}
+                />
+              </div>
+
+              {/* Value */}
+              <div className="text-center">
+                <span className="text-3xl font-bold text-primary flex items-center justify-center gap-1">
+                  <DollarSign className="h-6 w-6" />
+                  R$ {Number(currentOffer.delivery.delivery_fee).toFixed(2)}
+                </span>
+              </div>
+
+              {/* Route */}
+              <div className="relative pl-6 space-y-3">
+                <div className="absolute left-[11px] top-2 bottom-2 w-0.5 border-l-2 border-dashed border-muted-foreground/30" />
+                <div className="relative flex items-start gap-2">
+                  <div className="absolute -left-6 top-0.5 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                    <Store className="h-3 w-3 text-primary-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{currentOffer.delivery.establishment_name}</p>
+                    <p className="text-xs text-muted-foreground truncate max-w-[240px]">{currentOffer.delivery.establishment_address}</p>
+                  </div>
+                </div>
+                <div className="relative flex items-start gap-2">
+                  <div className="absolute -left-6 top-0.5 h-5 w-5 rounded-full bg-green-500 flex items-center justify-center">
+                    <MapPin className="h-3 w-3 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">{currentOffer.delivery.customer_name}</p>
+                    <p className="text-xs text-muted-foreground truncate max-w-[240px]">{currentOffer.delivery.delivery_address}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1 h-12 font-bold text-base"
+                  onClick={() => handleAccept(currentOffer.delivery_id)}
+                  disabled={actionLoading}
+                >
+                  {actionLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  <Truck className="h-4 w-4 mr-2" />
+                  Aceitar
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="h-12 px-6 font-bold"
+                  onClick={handleRejectOffer}
+                  disabled={rejectingOffer}
+                >
+                  {rejectingOffer ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-5 w-5" />}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Queue mode: waiting in queue */}
+        {!activeDelivery && isOnline && deliveryMode === 'queue' && !currentOffer && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="relative mb-4">
+              <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
+                <ListOrdered className="h-10 w-10 text-primary" />
+              </div>
+              <div className="absolute inset-0 h-20 w-20 rounded-full bg-primary/10 animate-ping" />
+            </div>
+            {queuePosition !== null ? (
+              <>
+                <p className="font-semibold text-lg">Você é o #{queuePosition} da fila</p>
+                <p className="text-sm text-muted-foreground mt-1">Aguarde sua vez para receber uma corrida</p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-lg">Na fila de espera</p>
+                <p className="text-sm text-muted-foreground mt-1">Você receberá uma oferta quando for sua vez</p>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Pool mode */}
+        {!activeDelivery && isOnline && deliveryMode === 'pool' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="font-bold text-lg">Corridas Disponíveis</h2>
@@ -345,7 +596,6 @@ const DriverHome = () => {
               availableDeliveries.map((d) => (
                 <Card key={d.id} className="overflow-hidden hover:shadow-md transition-shadow">
                   <CardContent className="p-0">
-                    {/* Value header */}
                     <div className="flex items-center justify-between px-4 py-3 bg-muted/50">
                       <span className="text-xl font-bold text-primary flex items-center gap-1">
                         <DollarSign className="h-5 w-5" />
@@ -358,7 +608,6 @@ const DriverHome = () => {
                         <span className="text-xs text-muted-foreground">{timeSince(d.created_at)}</span>
                       </div>
                     </div>
-                    {/* Route */}
                     <div className="px-4 py-3 space-y-2">
                       <div className="relative pl-6 space-y-3">
                         <div className="absolute left-[11px] top-2 bottom-2 w-0.5 border-l-2 border-dashed border-muted-foreground/30" />
@@ -382,7 +631,6 @@ const DriverHome = () => {
                         </div>
                       </div>
                     </div>
-                    {/* Accept button */}
                     <div className="px-4 pb-3">
                       <Button
                         className="w-full h-11 font-bold"
