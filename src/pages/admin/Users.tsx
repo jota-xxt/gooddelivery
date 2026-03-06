@@ -22,13 +22,17 @@ const AdminUsers = () => {
 
   const fetchUsers = async () => {
     const { data: profiles } = await supabase.from('profiles').select('user_id, full_name, phone, status');
-    if (!profiles) { setLoading(false); return; }
+    if (!profiles || profiles.length === 0) { setLoading(false); return; }
 
-    const enriched: UserRow[] = [];
-    for (const p of profiles) {
-      const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', p.user_id).single();
-      enriched.push({ ...p, role: roleData?.role ?? 'unknown' });
-    }
+    const userIds = profiles.map(p => p.user_id);
+    const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('user_id', userIds);
+    const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) ?? []);
+
+    const enriched: UserRow[] = profiles.map(p => ({
+      ...p,
+      role: roleMap.get(p.user_id) ?? 'unknown',
+    }));
+
     setUsers(enriched);
     setLoading(false);
   };

@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Users, Settings, DollarSign, XCircle, Truck } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, DollarSign, XCircle, Truck, Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 const navItems = [
   { label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" />, path: '/admin' },
@@ -13,12 +15,12 @@ const navItems = [
   { label: 'Configurações', icon: <Settings className="h-5 w-5" />, path: '/admin/settings' },
 ];
 
-const AdminSidebar = () => {
+const NavContent = ({ onNavigate }: { onNavigate?: () => void }) => {
   const location = useLocation();
   const { signOut } = useAuth();
 
   return (
-    <aside className="hidden lg:flex flex-col w-64 border-r bg-card h-screen sticky top-0">
+    <>
       <div className="flex items-center gap-3 p-6 border-b">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
           <Truck className="h-5 w-5 text-primary-foreground" />
@@ -35,6 +37,7 @@ const AdminSidebar = () => {
             <Link
               key={item.path}
               to={item.path}
+              onClick={onNavigate}
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                 active
@@ -53,7 +56,40 @@ const AdminSidebar = () => {
           Sair
         </Button>
       </div>
-    </aside>
+    </>
+  );
+};
+
+const AdminSidebar = () => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      {/* Mobile header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3 border-b bg-card">
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <Menu className="h-5 w-5" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="p-0 w-64 flex flex-col">
+            <NavContent onNavigate={() => setOpen(false)} />
+          </SheetContent>
+        </Sheet>
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+            <Truck className="h-4 w-4 text-primary-foreground" />
+          </div>
+          <span className="font-bold text-sm">Good Delivery</span>
+        </div>
+      </div>
+
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex flex-col w-64 border-r bg-card h-screen sticky top-0">
+        <NavContent />
+      </aside>
+    </>
   );
 };
 

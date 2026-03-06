@@ -63,8 +63,12 @@ const AdminFinancial = () => {
     const driverIds = rawReports.filter(r => r.entity_type === 'driver').map(r => r.entity_id);
 
     const [{ data: ests }, { data: drivers }] = await Promise.all([
-      supabase.from('establishments').select('id, business_name').in('id', estIds.length > 0 ? estIds : ['x']),
-      supabase.from('drivers').select('id, user_id').in('id', driverIds.length > 0 ? driverIds : ['x']),
+      estIds.length > 0
+        ? supabase.from('establishments').select('id, business_name').in('id', estIds)
+        : Promise.resolve({ data: [] as { id: string; business_name: string }[] }),
+      driverIds.length > 0
+        ? supabase.from('drivers').select('id, user_id').in('id', driverIds)
+        : Promise.resolve({ data: [] as { id: string; user_id: string }[] }),
     ]);
 
     let driverNames: Record<string, string> = {};

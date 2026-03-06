@@ -1,21 +1,21 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Star } from 'lucide-react';
 
 const DriverProfile = () => {
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<{ full_name: string; phone: string } | null>(null);
-  const [driver, setDriver] = useState<{ vehicle_type: string; plate: string; cpf: string } | null>(null);
+  const [driver, setDriver] = useState<{ vehicle_type: string; cpf: string } | null>(null);
   const [avgRating, setAvgRating] = useState<number | null>(null);
 
   useEffect(() => {
     if (!user) return;
     supabase.from('profiles').select('full_name, phone').eq('user_id', user.id).single()
       .then(({ data }) => setProfile(data));
-    supabase.from('drivers').select('vehicle_type, plate, cpf').eq('user_id', user.id).single()
+    supabase.from('drivers').select('vehicle_type, cpf').eq('user_id', user.id).single()
       .then(({ data }) => setDriver(data));
     supabase.from('ratings').select('rating').eq('to_user_id', user.id)
       .then(({ data }) => {
@@ -25,7 +25,7 @@ const DriverProfile = () => {
       });
   }, [user]);
 
-  const vehicleLabels: Record<string, string> = { motorcycle: 'Moto', bicycle: 'Bicicleta', car: 'Carro' };
+  const vehicleLabels: Record<string, string> = { motorcycle: 'Moto', bicycle: 'Bicicleta' };
 
   return (
     <div className="p-4 space-y-4">
@@ -42,7 +42,7 @@ const DriverProfile = () => {
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Veículo</p>
-            <p className="font-semibold">{vehicleLabels[driver?.vehicle_type ?? ''] ?? '-'} {driver?.plate ? `• ${driver.plate}` : ''}</p>
+            <p className="font-semibold">{vehicleLabels[driver?.vehicle_type ?? ''] ?? '-'}</p>
           </div>
           {avgRating !== null && (
             <div className="flex items-center gap-2">

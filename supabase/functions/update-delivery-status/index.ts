@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
     if (userError || !user) throw new Error("Unauthorized");
 
-    const { delivery_id, action } = await req.json();
+    const { delivery_id, action, cancel_reason } = await req.json();
     if (!delivery_id || !action) throw new Error("Missing delivery_id or action");
 
     // Get current delivery
@@ -185,8 +185,6 @@ Deno.serve(async (req) => {
           status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-
-      const { cancel_reason } = await req.json().catch(() => ({ cancel_reason: "" }));
 
       await supabaseAdmin.from("deliveries").update({
         status: "cancelled",

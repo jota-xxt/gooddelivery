@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -23,17 +23,16 @@ const AdminApprovals = () => {
       .select('user_id, full_name, phone')
       .eq('status', 'pending');
 
-    if (!profiles) { setLoading(false); return; }
+    if (!profiles || profiles.length === 0) { setLoading(false); return; }
 
-    const enriched: PendingUser[] = [];
-    for (const p of profiles) {
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', p.user_id)
-        .single();
-      enriched.push({ ...p, role: roleData?.role ?? 'unknown' });
-    }
+    const userIds = profiles.map(p => p.user_id);
+    const { data: roles } = await supabase.from('user_roles').select('user_id, role').in('user_id', userIds);
+    const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) ?? []);
+
+    const enriched: PendingUser[] = profiles.map(p => ({
+      ...p,
+      role: roleMap.get(p.user_id) ?? 'unknown',
+    }));
 
     setPending(enriched);
     setLoading(false);

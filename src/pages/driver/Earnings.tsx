@@ -62,8 +62,12 @@ const DriverEarnings = () => {
 
     // Get establishment names
     const estIds = [...new Set(deliveries.map(d => d.establishment_id))];
-    const { data: ests } = await supabase.from('establishments').select('id, business_name').in('id', estIds.length > 0 ? estIds : ['x']);
-    const estMap = new Map(ests?.map(e => [e.id, e.business_name]) ?? []);
+    let ests: { id: string; business_name: string }[] = [];
+    if (estIds.length > 0) {
+      const { data } = await supabase.from('establishments').select('id, business_name').in('id', estIds);
+      ests = data ?? [];
+    }
+    const estMap = new Map(ests.map(e => [e.id, e.business_name]));
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
