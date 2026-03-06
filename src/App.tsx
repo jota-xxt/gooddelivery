@@ -21,6 +21,7 @@ import AdminCancellations from "./pages/admin/Cancellations";
 
 import DriverLayout from "./layouts/DriverLayout";
 import DriverHome from "./pages/driver/Home";
+import DriverHistory from "./pages/driver/History";
 import DriverEarnings from "./pages/driver/Earnings";
 import DriverProfile from "./pages/driver/Profile";
 
@@ -84,6 +85,7 @@ const App = () => (
               </RoleGuard>
             }>
               <Route index element={<DriverHome />} />
+              <Route path="history" element={<DriverHistory />} />
               <Route path="earnings" element={<DriverEarnings />} />
               <Route path="profile" element={<DriverProfile />} />
             </Route>
