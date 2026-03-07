@@ -74,6 +74,7 @@ const AdminSettings = () => {
     setPenaltyLoading(false);
     if (r1.error || r2.error) toast.error('Erro ao salvar punição');
     else toast.success('Configurações de punição salvas!');
+  };
 
   if (pageLoading) {
     return (
