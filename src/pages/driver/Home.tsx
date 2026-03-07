@@ -11,14 +11,14 @@ import { MapPin, DollarSign, Navigation, Clock, Loader2, Store, Package, CheckCi
 
 interface DeliveryWithEstablishment {
   id: string;
-  customer_name: string;
   delivery_address: string;
   delivery_fee: number;
   status: string;
-  prep_time_minutes: number;
   establishment_id: string;
   created_at: string;
   accepted_at: string | null;
+  observations: string | null;
+  urgency: string;
   establishment_name?: string;
   establishment_address?: string;
 }
@@ -125,7 +125,7 @@ const DriverHome = () => {
       // Fetch delivery details
       const { data: del } = await supabase
         .from('deliveries')
-        .select('id, customer_name, delivery_address, delivery_fee, status, prep_time_minutes, establishment_id, created_at, accepted_at')
+        .select('id, delivery_address, delivery_fee, status, establishment_id, created_at, accepted_at, observations, urgency')
         .eq('id', (data as any).delivery_id)
         .maybeSingle();
 
@@ -170,7 +170,7 @@ const DriverHome = () => {
 
     const { data: active } = await supabase
       .from('deliveries')
-      .select('id, customer_name, delivery_address, delivery_fee, status, prep_time_minutes, establishment_id, created_at, accepted_at')
+      .select('id, delivery_address, delivery_fee, status, establishment_id, created_at, accepted_at, observations, urgency')
       .eq('driver_id', driverId)
       .in('status', ['accepted', 'collecting', 'delivering'])
       .limit(1)
@@ -194,7 +194,7 @@ const DriverHome = () => {
     if (isOnline) {
       const { data: pool } = await supabase
         .from('deliveries')
-        .select('id, customer_name, delivery_address, delivery_fee, status, prep_time_minutes, establishment_id, created_at, accepted_at')
+      .select('id, delivery_address, delivery_fee, status, establishment_id, created_at, accepted_at, observations, urgency')
         .eq('status', 'searching')
         .order('created_at', { ascending: false })
         .limit(20);
@@ -442,8 +442,8 @@ const DriverHome = () => {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Entrega</p>
-                    <p className="text-sm font-medium">{activeDelivery.customer_name}</p>
-                    <p className="text-xs text-muted-foreground">{activeDelivery.delivery_address}</p>
+                    <p className="text-sm font-medium truncate max-w-[240px]">{activeDelivery.delivery_address}</p>
+                    {activeDelivery.observations && <p className="text-xs text-muted-foreground">{activeDelivery.observations}</p>}
                   </div>
                 </div>
               </div>
@@ -521,8 +521,8 @@ const DriverHome = () => {
                     <MapPin className="h-3 w-3 text-white" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium">{currentOffer.delivery.customer_name}</p>
-                    <p className="text-xs text-muted-foreground truncate max-w-[240px]">{currentOffer.delivery.delivery_address}</p>
+                    <p className="text-sm font-medium truncate max-w-[240px]">{currentOffer.delivery.delivery_address}</p>
+                    {currentOffer.delivery.observations && <p className="text-xs text-muted-foreground">{currentOffer.delivery.observations}</p>}
                   </div>
                 </div>
               </div>
@@ -622,8 +622,8 @@ const DriverHome = () => {
                             <MapPin className="h-3 w-3 text-white" />
                           </div>
                           <div>
-                            <p className="text-sm font-medium">{d.customer_name}</p>
-                            <p className="text-xs text-muted-foreground truncate max-w-[240px]">{d.delivery_address}</p>
+                            <p className="text-sm font-medium truncate max-w-[240px]">{d.delivery_address}</p>
+                            {d.observations && <p className="text-xs text-muted-foreground">{d.observations}</p>}
                           </div>
                         </div>
                       </div>

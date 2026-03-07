@@ -11,7 +11,7 @@ import { ptBR } from 'date-fns/locale';
 
 interface DeliveryRow {
   id: string;
-  customer_name: string;
+  delivery_address: string;
   delivery_fee: number;
   delivered_at: string;
   driver_name: string;
@@ -50,7 +50,7 @@ const EstablishmentFinancial = () => {
 
     const { data: deliveries } = await supabase
       .from('deliveries')
-      .select('id, customer_name, delivery_fee, delivered_at, driver_id')
+      .select('id, delivery_address, delivery_fee, delivered_at, driver_id')
       .eq('establishment_id', est.id)
       .eq('status', 'completed')
       .order('delivered_at', { ascending: false });
@@ -74,7 +74,7 @@ const EstablishmentFinancial = () => {
 
     const list: DeliveryRow[] = deliveries.map(d => ({
       id: d.id,
-      customer_name: d.customer_name,
+      delivery_address: d.delivery_address,
       delivery_fee: Number(d.delivery_fee),
       delivered_at: d.delivered_at ?? '',
       driver_name: d.driver_id ? (driverNames[d.driver_id] ?? 'Entregador') : '-',
@@ -158,7 +158,7 @@ const EstablishmentFinancial = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>Data</TableHead>
-                  <TableHead>Cliente</TableHead>
+                  <TableHead>Endereço</TableHead>
                   <TableHead>Entregador</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
                 </TableRow>
@@ -169,7 +169,7 @@ const EstablishmentFinancial = () => {
                     <TableCell className="text-xs">
                       {d.delivered_at ? format(new Date(d.delivered_at), 'dd/MM HH:mm', { locale: ptBR }) : '-'}
                     </TableCell>
-                    <TableCell className="text-xs">{d.customer_name}</TableCell>
+                    <TableCell className="text-xs truncate max-w-[120px]">{d.delivery_address}</TableCell>
                     <TableCell className="text-xs">{d.driver_name}</TableCell>
                     <TableCell className="text-right text-xs font-medium">R$ {d.delivery_fee.toFixed(2)}</TableCell>
                   </TableRow>

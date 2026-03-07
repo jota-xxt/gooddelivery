@@ -14,7 +14,6 @@ import { ptBR } from 'date-fns/locale';
 
 interface DeliveryRow {
   id: string;
-  customer_name: string;
   delivery_address: string;
   delivery_fee: number;
   status: string;
@@ -42,7 +41,7 @@ const AdminCancellations = () => {
   useEffect(() => {
     supabase
       .from('deliveries')
-      .select('id, customer_name, delivery_address, delivery_fee, status, created_at')
+      .select('id, delivery_address, delivery_fee, status, created_at')
       .in('status', ['searching', 'accepted', 'collecting', 'delivering'])
       .order('created_at', { ascending: false })
       .then(({ data }) => { setDeliveries(data ?? []); setPageLoading(false); });
@@ -89,7 +88,7 @@ const AdminCancellations = () => {
                 <CardContent className="flex items-center gap-4 py-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold truncate">{d.customer_name}</p>
+                      <p className="font-semibold truncate">{d.delivery_address}</p>
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${urgency.color}`}>
                         {urgency.label}
                       </span>
