@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Users, Settings, DollarSign, XCircle, Truck, Menu, MapPin } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, DollarSign, Truck, Menu, MapPin } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -11,7 +11,7 @@ const navItems = [
   { label: 'Aprovações', icon: <Users className="h-5 w-5" />, path: '/admin/approvals' },
   { label: 'Usuários', icon: <Users className="h-5 w-5" />, path: '/admin/users' },
   { label: 'Financeiro', icon: <DollarSign className="h-5 w-5" />, path: '/admin/financial' },
-  { label: 'Cancelamentos', icon: <XCircle className="h-5 w-5" />, path: '/admin/cancellations' },
+  
   { label: 'Mapa', icon: <MapPin className="h-5 w-5" />, path: '/admin/map' },
   { label: 'Configurações', icon: <Settings className="h-5 w-5" />, path: '/admin/settings' },
 ];
