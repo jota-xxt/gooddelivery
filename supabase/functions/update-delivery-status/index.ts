@@ -131,7 +131,7 @@ async function handleAccept(
     supabaseAdmin,
     delivery.establishment_id as string,
     "Entregador encontrado!",
-    `Um entregador aceitou a corrida de ${delivery.customer_name}.`
+    `Um entregador aceitou a corrida para ${delivery.delivery_address}.`
   );
 
   return new Response(JSON.stringify({ success: true, status: "accepted" }), {
@@ -221,9 +221,9 @@ async function handleAdvance(
   }
 
   const statusMessages: Record<string, string> = {
-    collecting: `O entregador chegou para coletar o pedido de ${delivery.customer_name}.`,
-    delivering: `O pedido de ${delivery.customer_name} saiu para entrega!`,
-    completed: `A entrega de ${delivery.customer_name} foi concluída! ✅`,
+    collecting: `O entregador chegou para coletar o pedido para ${delivery.delivery_address}.`,
+    delivering: `O pedido para ${delivery.delivery_address} saiu para entrega!`,
+    completed: `A entrega para ${delivery.delivery_address} foi concluída! ✅`,
   };
 
   if (statusMessages[config.next]) {
@@ -278,7 +278,7 @@ async function handleCancel(
     notifications.push({
       user_id: est.user_id,
       title: "Entrega cancelada",
-      message: `A entrega de ${delivery.customer_name} foi cancelada pelo admin.`,
+      message: `A entrega para ${delivery.delivery_address} foi cancelada pelo admin.`,
     });
   }
 
@@ -293,7 +293,7 @@ async function handleCancel(
       notifications.push({
         user_id: driverData.user_id,
         title: "Corrida cancelada",
-        message: `A corrida de ${delivery.customer_name} foi cancelada pelo admin.`,
+        message: `A corrida para ${delivery.delivery_address} foi cancelada pelo admin.`,
       });
     }
   }
