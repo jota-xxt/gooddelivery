@@ -156,6 +156,10 @@ const DriverHome = () => {
       if (remaining === 0) {
         setCurrentOffer(null);
         if (timerRef.current) clearInterval(timerRef.current);
+        // Reprocess queue so next driver gets the offer
+        supabase.functions.invoke('process-delivery-queue', {
+          body: { delivery_id: currentOffer.delivery_id },
+        }).catch(() => {});
         fetchCurrentOffer();
       }
     };
@@ -238,6 +242,19 @@ const DriverHome = () => {
         .subscribe();
       channels.push(offersChannel);
     }
+
+    // C) Listen for delivery_mode changes in real-time
+    const settingsChannel = supabase
+      .channel('app-settings-mode')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload) => {
+        if (payload.new && (payload.new as any).key === 'delivery_mode') {
+          const newMode = (payload.new as any).value as 'pool' | 'queue';
+          setDeliveryMode(newMode);
+          toast.info(newMode === 'queue' ? 'Modo alterado para Fila' : 'Modo alterado para Pool Aberto');
+        }
+      })
+      .subscribe();
+    channels.push(settingsChannel);
 
     return () => { channels.forEach(c => supabase.removeChannel(c)); };
   }, [driverId, isOnline, deliveryMode, fetchDeliveries, fetchCurrentOffer, fetchQueuePosition]);
