@@ -104,15 +104,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.error('Error signing out:', err);
     } finally {
-      setUser(null);
-      setSession(null);
-      setRole(null);
-      setStatus(null);
+      setState({ user: null, session: null, role: null, status: null, loading: false });
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, status, loading, signOut }}>
+    <AuthContext.Provider value={{ ...state, signOut }}>
       {children}
     </AuthContext.Provider>
   );
