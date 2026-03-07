@@ -50,7 +50,7 @@ const EstablishmentHistory = () => {
                     {d.status === 'completed' ? 'Concluída' : 'Cancelada'}
                   </Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">{d.delivery_address}</p>
+                
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-sm font-medium">R$ {Number(d.delivery_fee).toFixed(2)}</span>
                   <span className="text-xs text-muted-foreground">{format(new Date(d.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>
