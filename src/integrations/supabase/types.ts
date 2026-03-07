@@ -42,16 +42,18 @@ export type Database = {
           cancelled_at: string | null
           collected_at: string | null
           created_at: string
-          customer_name: string
+          customer_name: string | null
           delivered_at: string | null
           delivery_address: string
           delivery_fee: number
           driver_id: string | null
           establishment_id: string
           id: string
-          prep_time_minutes: number
+          observations: string | null
+          prep_time_minutes: number | null
           status: Database["public"]["Enums"]["delivery_status"]
           updated_at: string
+          urgency: string
         }
         Insert: {
           accepted_at?: string | null
@@ -59,16 +61,18 @@ export type Database = {
           cancelled_at?: string | null
           collected_at?: string | null
           created_at?: string
-          customer_name: string
+          customer_name?: string | null
           delivered_at?: string | null
           delivery_address: string
           delivery_fee: number
           driver_id?: string | null
           establishment_id: string
           id?: string
-          prep_time_minutes?: number
+          observations?: string | null
+          prep_time_minutes?: number | null
           status?: Database["public"]["Enums"]["delivery_status"]
           updated_at?: string
+          urgency?: string
         }
         Update: {
           accepted_at?: string | null
@@ -76,16 +80,18 @@ export type Database = {
           cancelled_at?: string | null
           collected_at?: string | null
           created_at?: string
-          customer_name?: string
+          customer_name?: string | null
           delivered_at?: string | null
           delivery_address?: string
           delivery_fee?: number
           driver_id?: string | null
           establishment_id?: string
           id?: string
-          prep_time_minutes?: number
+          observations?: string | null
+          prep_time_minutes?: number | null
           status?: Database["public"]["Enums"]["delivery_status"]
           updated_at?: string
+          urgency?: string
         }
         Relationships: [
           {
