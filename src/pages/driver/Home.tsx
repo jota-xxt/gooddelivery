@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDeliveryActions } from '@/hooks/useDeliveryActions';
 import MapPicker, { type MapMarker } from '@/components/MapPicker';
+import DriverQueueVisual from '@/components/DriverQueueVisual';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -675,27 +676,8 @@ const DriverHome = () => {
           </div>
         )}
 
-        {/* Queue mode: waiting in queue */}
-        {!activeDelivery && isOnline && deliveryMode === 'queue' && !currentOffer && (!blockedUntil || new Date(blockedUntil).getTime() <= Date.now()) && (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="relative mb-4">
-              <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
-                <ListOrdered className="h-10 w-10 text-primary" />
-              </div>
-              <div className="absolute inset-0 h-20 w-20 rounded-full bg-primary/10 animate-ping" />
-            </div>
-            {queuePosition !== null ? (
-              <>
-                <p className="font-semibold text-lg">Você é o #{queuePosition} da fila</p>
-                <p className="text-sm text-muted-foreground mt-1">Aguarde sua vez para receber uma corrida</p>
-              </>
-            ) : (
-              <>
-                <p className="font-semibold text-lg">Na fila de espera</p>
-                <p className="text-sm text-muted-foreground mt-1">Você receberá uma oferta quando for sua vez</p>
-              </>
-            )}
-          </div>
+        {!activeDelivery && isOnline && deliveryMode === 'queue' && !currentOffer && (!blockedUntil || new Date(blockedUntil).getTime() <= Date.now()) && driverId && (
+          <DriverQueueVisual driverId={driverId} isOnline={isOnline} />
         )}
 
         {/* Pool mode */}
