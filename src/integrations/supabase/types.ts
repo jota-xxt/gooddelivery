@@ -204,6 +204,8 @@ export type Database = {
           cnpj: string
           created_at: string
           id: string
+          latitude: number | null
+          longitude: number | null
           phone: string
           responsible_name: string
           updated_at: string
@@ -215,6 +217,8 @@ export type Database = {
           cnpj: string
           created_at?: string
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           phone: string
           responsible_name: string
           updated_at?: string
@@ -226,6 +230,8 @@ export type Database = {
           cnpj?: string
           created_at?: string
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           phone?: string
           responsible_name?: string
           updated_at?: string
