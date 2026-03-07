@@ -215,8 +215,14 @@ const DriverHome = () => {
       .maybeSingle();
 
     if (active) {
-      const { data: est } = await supabase.from('establishments').select('business_name, address').eq('id', active.establishment_id).maybeSingle();
-      setActiveDelivery({ ...active, establishment_name: est?.business_name, establishment_address: est?.address });
+      const { data: est } = await supabase.from('establishments').select('business_name, address, latitude, longitude').eq('id', active.establishment_id).maybeSingle();
+      setActiveDelivery({
+        ...active,
+        establishment_name: est?.business_name,
+        establishment_address: est?.address,
+        establishment_lat: (est as any)?.latitude,
+        establishment_lng: (est as any)?.longitude,
+      });
       setAvailableDeliveries([]);
       return;
     }
