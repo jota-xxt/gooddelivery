@@ -162,7 +162,73 @@ const AdminSettings = () => {
         </CardContent>
       </Card>
 
-      {/* Platform Fee */}
+      {/* Penalty Settings */}
+      {deliveryMode === 'queue' && (
+        <Card className="max-w-lg">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-primary" />
+              Punição por Inatividade
+            </CardTitle>
+            <CardDescription>
+              Bloqueia temporariamente entregadores que recusam ou perdem ofertas repetidamente.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label>Limite de infrações (24h)</Label>
+                <Badge variant="outline" className="text-lg font-bold px-3 py-1">
+                  {penaltyThreshold}x
+                </Badge>
+              </div>
+              <Slider
+                value={[penaltyThreshold]}
+                onValueChange={([v]) => setPenaltyThreshold(v)}
+                min={1}
+                max={10}
+                step={1}
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>1x</span>
+                <span>5x</span>
+                <span>10x</span>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label>Tempo de bloqueio</Label>
+                <Badge variant="outline" className="text-lg font-bold px-3 py-1">
+                  {penaltyDuration} min
+                </Badge>
+              </div>
+              <Slider
+                value={[penaltyDuration]}
+                onValueChange={([v]) => setPenaltyDuration(v)}
+                min={5}
+                max={120}
+                step={5}
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>5 min</span>
+                <span>60 min</span>
+                <span>120 min</span>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-accent text-accent-foreground text-sm">
+              <Info className="h-4 w-4 mt-0.5 shrink-0" />
+              <p>Se um entregador recusar ou perder {penaltyThreshold} ofertas em 24h, será bloqueado por {penaltyDuration} minutos.</p>
+            </div>
+
+            <Button onClick={savePenalty} disabled={penaltyLoading} className="w-full">
+              {penaltyLoading ? 'Salvando...' : 'Salvar Punição'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="max-w-lg">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
