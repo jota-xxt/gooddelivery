@@ -100,11 +100,21 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Filter out excluded drivers and those with active deliveries
+    // Filter out excluded drivers, blocked drivers, and those with active deliveries
     let selectedDriverId: string | null = null;
+    const now = new Date().toISOString();
 
     for (const driver of onlineDrivers) {
       if (excludedDriverIds.includes(driver.id)) continue;
+
+      // Check if driver is blocked
+      const { data: driverData } = await supabaseAdmin
+        .from("drivers")
+        .select("blocked_until")
+        .eq("id", driver.id)
+        .single();
+
+      if (driverData?.blocked_until && driverData.blocked_until > now) continue;
 
       // Check if driver has active delivery
       const { data: activeDeliveries } = await supabaseAdmin
