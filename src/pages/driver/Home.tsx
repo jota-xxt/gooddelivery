@@ -52,6 +52,7 @@ const DriverHome = () => {
   const [rejectingOffer, setRejectingOffer] = useState(false);
   const [blockedUntil, setBlockedUntil] = useState<string | null>(null);
   const [blockCountdown, setBlockCountdown] = useState<string | null>(null);
+  const [deliveryMapMarkers, setDeliveryMapMarkers] = useState<MapMarker[]>([]);
 
   // Load driver + delivery mode
   useEffect(() => {
