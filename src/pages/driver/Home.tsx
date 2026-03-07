@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDeliveryActions } from '@/hooks/useDeliveryActions';
+import MapPicker, { type MapMarker } from '@/components/MapPicker';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -21,6 +22,8 @@ interface DeliveryWithEstablishment {
   urgency: string;
   establishment_name?: string;
   establishment_address?: string;
+  establishment_lat?: number | null;
+  establishment_lng?: number | null;
 }
 
 interface DeliveryOffer {
@@ -49,6 +52,7 @@ const DriverHome = () => {
   const [rejectingOffer, setRejectingOffer] = useState(false);
   const [blockedUntil, setBlockedUntil] = useState<string | null>(null);
   const [blockCountdown, setBlockCountdown] = useState<string | null>(null);
+  const [deliveryMapMarkers, setDeliveryMapMarkers] = useState<MapMarker[]>([]);
 
   // Load driver + delivery mode
   useEffect(() => {
@@ -115,6 +119,35 @@ const DriverHome = () => {
         }
       });
   }, [driverId, activeDelivery]);
+
+  // Geocode addresses for active delivery map
+  useEffect(() => {
+    if (!activeDelivery) { setDeliveryMapMarkers([]); return; }
+    const markers: MapMarker[] = [];
+    const promises: Promise<void>[] = [];
+
+    // Establishment pin (use saved coords or geocode)
+    if (activeDelivery.establishment_lat && activeDelivery.establishment_lng) {
+      markers.push({ lat: activeDelivery.establishment_lat, lng: activeDelivery.establishment_lng, label: activeDelivery.establishment_name ?? 'Coleta', color: '#3b82f6' });
+    } else if (activeDelivery.establishment_address) {
+      promises.push(
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(activeDelivery.establishment_address)}&limit=1&countrycodes=br`, { headers: { 'User-Agent': 'GoodDeliveryApp/1.0' } })
+          .then(r => r.json())
+          .then(data => { if (data.length > 0) markers.push({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: activeDelivery.establishment_name ?? 'Coleta', color: '#3b82f6' }); })
+          .catch(() => {})
+      );
+    }
+
+    // Delivery address geocode
+    promises.push(
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(activeDelivery.delivery_address)}&limit=1&countrycodes=br`, { headers: { 'User-Agent': 'GoodDeliveryApp/1.0' } })
+        .then(r => r.json())
+        .then(data => { if (data.length > 0) markers.push({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: 'Entrega', color: '#10b981' }); })
+        .catch(() => {})
+    );
+
+    Promise.all(promises).then(() => setDeliveryMapMarkers(markers));
+  }, [activeDelivery]);
 
   // Queue position
   const fetchQueuePosition = useCallback(async () => {
@@ -212,8 +245,14 @@ const DriverHome = () => {
       .maybeSingle();
 
     if (active) {
-      const { data: est } = await supabase.from('establishments').select('business_name, address').eq('id', active.establishment_id).maybeSingle();
-      setActiveDelivery({ ...active, establishment_name: est?.business_name, establishment_address: est?.address });
+      const { data: est } = await supabase.from('establishments').select('business_name, address, latitude, longitude').eq('id', active.establishment_id).maybeSingle();
+      setActiveDelivery({
+        ...active,
+        establishment_name: est?.business_name,
+        establishment_address: est?.address,
+        establishment_lat: (est as any)?.latitude,
+        establishment_lng: (est as any)?.longitude,
+      });
       setAvailableDeliveries([]);
       return;
     }
@@ -481,6 +520,15 @@ const DriverHome = () => {
               <div className="text-center">
                 <span className="text-2xl font-bold text-primary">R$ {Number(activeDelivery.delivery_fee).toFixed(2)}</span>
               </div>
+
+              {/* Delivery map */}
+              {deliveryMapMarkers.length > 0 && (
+                <MapPicker
+                  mode="view"
+                  markers={deliveryMapMarkers}
+                  height="180px"
+                />
+              )}
 
               {/* Route visualization */}
               <div className="relative pl-6 space-y-3">

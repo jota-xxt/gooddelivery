@@ -18,6 +18,7 @@ import AdminUsers from "./pages/admin/Users";
 import AdminFinancial from "./pages/admin/Financial";
 import AdminSettings from "./pages/admin/Settings";
 import AdminCancellations from "./pages/admin/Cancellations";
+import AdminMapOverview from "./pages/admin/MapOverview";
 
 import DriverLayout from "./layouts/DriverLayout";
 import DriverHome from "./pages/driver/Home";
@@ -77,6 +78,7 @@ const App = () => (
               <Route path="financial" element={<AdminFinancial />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="cancellations" element={<AdminCancellations />} />
+              <Route path="map" element={<AdminMapOverview />} />
             </Route>
 
             <Route path="/driver" element={
