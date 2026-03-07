@@ -147,6 +147,7 @@ const DriverHome = () => {
     );
 
     Promise.all(promises).then(() => setDeliveryMapMarkers(markers));
+  }, [activeDelivery]);
 
   // Queue position
   const fetchQueuePosition = useCallback(async () => {
