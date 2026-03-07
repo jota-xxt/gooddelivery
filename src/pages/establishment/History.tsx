@@ -8,7 +8,6 @@ import { ptBR } from 'date-fns/locale';
 
 interface Delivery {
   id: string;
-  customer_name: string;
   delivery_address: string;
   delivery_fee: number;
   status: string;
@@ -26,7 +25,7 @@ const EstablishmentHistory = () => {
       if (!est) return;
       const { data } = await supabase
         .from('deliveries')
-        .select('id, customer_name, delivery_address, delivery_fee, status, created_at')
+        .select('id, delivery_address, delivery_fee, status, created_at')
         .eq('establishment_id', est.id)
         .in('status', ['completed', 'cancelled'])
         .order('created_at', { ascending: false });
@@ -46,12 +45,12 @@ const EstablishmentHistory = () => {
             <Card key={d.id}>
               <CardContent className="py-4">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="font-semibold">{d.customer_name}</p>
+                  <p className="font-semibold truncate max-w-[200px]">{d.delivery_address}</p>
                   <Badge variant={d.status === 'completed' ? 'default' : 'destructive'}>
                     {d.status === 'completed' ? 'Concluída' : 'Cancelada'}
                   </Badge>
                 </div>
-                <p className="text-sm text-muted-foreground">{d.delivery_address}</p>
+                
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-sm font-medium">R$ {Number(d.delivery_fee).toFixed(2)}</span>
                   <span className="text-xs text-muted-foreground">{format(new Date(d.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}</span>

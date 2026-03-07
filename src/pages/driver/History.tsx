@@ -11,7 +11,6 @@ import { ptBR } from 'date-fns/locale';
 
 interface HistoryDelivery {
   id: string;
-  customer_name: string;
   delivery_address: string;
   delivery_fee: number;
   delivered_at: string | null;
@@ -41,7 +40,7 @@ const DriverHistory = () => {
 
     const { data } = await supabase
       .from('deliveries')
-      .select('id, customer_name, delivery_address, delivery_fee, delivered_at, cancelled_at, status, establishment_id')
+      .select('id, delivery_address, delivery_fee, delivered_at, cancelled_at, status, establishment_id')
       .eq('driver_id', driver.id)
       .in('status', ['completed', 'cancelled'])
       .order('delivered_at', { ascending: false });
@@ -141,7 +140,7 @@ const DriverHistory = () => {
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <MapPin className="h-3 w-3 shrink-0" />
-                    <span className="truncate">{d.customer_name} — {d.delivery_address}</span>
+                    <span className="truncate">{d.delivery_address}</span>
                   </div>
                 </CardContent>
               </Card>
