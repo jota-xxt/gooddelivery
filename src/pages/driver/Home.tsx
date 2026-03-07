@@ -272,6 +272,17 @@ const DriverHome = () => {
         })
         .subscribe();
       channels.push(offersChannel);
+
+      // Listen for driver blocked_until changes
+      const driversChannel = supabase
+        .channel('driver-block-status')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'drivers', filter: `id=eq.${driverId}` }, (payload) => {
+          if (payload.new) {
+            setBlockedUntil((payload.new as any).blocked_until ?? null);
+          }
+        })
+        .subscribe();
+      channels.push(driversChannel);
     }
 
     // C) Listen for delivery_mode changes in real-time
