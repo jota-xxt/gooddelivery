@@ -65,6 +65,16 @@ const AdminSettings = () => {
     }
   };
 
+  const savePenalty = async () => {
+    setPenaltyLoading(true);
+    const [r1, r2] = await Promise.all([
+      supabase.from('app_settings').update({ value: String(penaltyThreshold) }).eq('key', 'queue_penalty_threshold'),
+      supabase.from('app_settings').update({ value: String(penaltyDuration) }).eq('key', 'queue_penalty_duration_minutes'),
+    ]);
+    setPenaltyLoading(false);
+    if (r1.error || r2.error) toast.error('Erro ao salvar punição');
+    else toast.success('Configurações de punição salvas!');
+
   if (pageLoading) {
     return (
       <div className="space-y-6">
