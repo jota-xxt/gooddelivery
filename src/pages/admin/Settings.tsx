@@ -8,24 +8,31 @@ import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Settings, Percent, Info, Users, ListOrdered } from 'lucide-react';
+import { Settings, Percent, Info, Users, ListOrdered, ShieldAlert } from 'lucide-react';
 
 const AdminSettings = () => {
   const [fee, setFee] = useState(10);
   const [deliveryMode, setDeliveryMode] = useState<'pool' | 'queue'>('pool');
+  const [penaltyThreshold, setPenaltyThreshold] = useState(3);
+  const [penaltyDuration, setPenaltyDuration] = useState(30);
   const [loading, setLoading] = useState(false);
   const [modeLoading, setModeLoading] = useState(false);
+  const [penaltyLoading, setPenaltyLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
-      supabase.from('app_settings').select('key, value').in('key', ['platform_fee_percentage', 'delivery_mode']),
+      supabase.from('app_settings').select('key, value').in('key', ['platform_fee_percentage', 'delivery_mode', 'queue_penalty_threshold', 'queue_penalty_duration_minutes']),
     ]).then(([{ data }]) => {
       if (data) {
         const feeRow = data.find(r => r.key === 'platform_fee_percentage');
         const modeRow = data.find(r => r.key === 'delivery_mode');
+        const thresholdRow = data.find(r => r.key === 'queue_penalty_threshold');
+        const durationRow = data.find(r => r.key === 'queue_penalty_duration_minutes');
         if (feeRow) setFee(Number(feeRow.value));
         if (modeRow) setDeliveryMode(modeRow.value as 'pool' | 'queue');
+        if (thresholdRow) setPenaltyThreshold(Number(thresholdRow.value));
+        if (durationRow) setPenaltyDuration(Number(durationRow.value));
       }
       setPageLoading(false);
     });

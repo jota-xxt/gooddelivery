@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { MapPin, DollarSign, Navigation, Clock, Loader2, Store, Package, CheckCircle2, Power, Truck, Radio, ListOrdered, X, Timer } from 'lucide-react';
+import { MapPin, DollarSign, Navigation, Clock, Loader2, Store, Package, CheckCircle2, Power, Truck, Radio, ListOrdered, X, Timer, Ban } from 'lucide-react';
 
 interface DeliveryWithEstablishment {
   id: string;
@@ -47,22 +47,53 @@ const DriverHome = () => {
   const [offerTimer, setOfferTimer] = useState(60);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [rejectingOffer, setRejectingOffer] = useState(false);
+  const [blockedUntil, setBlockedUntil] = useState<string | null>(null);
+  const [blockCountdown, setBlockCountdown] = useState<string | null>(null);
 
   // Load driver + delivery mode
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      supabase.from('drivers').select('id, is_online').eq('user_id', user.id).maybeSingle(),
+      supabase.from('drivers').select('id, is_online, blocked_until').eq('user_id', user.id).maybeSingle(),
       supabase.from('app_settings').select('value').eq('key', 'delivery_mode').maybeSingle(),
     ]).then(([{ data: driverData }, { data: modeData }]) => {
       if (driverData) {
         setDriverId(driverData.id);
         setIsOnline(driverData.is_online);
+        setBlockedUntil((driverData as any).blocked_until ?? null);
       }
       if (modeData) setDeliveryMode(modeData.value as 'pool' | 'queue');
       setInitialLoading(false);
     });
   }, [user]);
+
+  // Block countdown timer
+  useEffect(() => {
+    if (!blockedUntil) {
+      setBlockCountdown(null);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const remaining = new Date(blockedUntil).getTime() - Date.now();
+      if (remaining <= 0) {
+        setBlockedUntil(null);
+        setBlockCountdown(null);
+        // Clear blocked_until in DB
+        if (driverId) {
+          supabase.from('drivers').update({ blocked_until: null } as any).eq('id', driverId).then(() => {});
+        }
+        return;
+      }
+      const mins = Math.floor(remaining / 60000);
+      const secs = Math.floor((remaining % 60000) / 1000);
+      setBlockCountdown(`${mins}:${secs.toString().padStart(2, '0')}`);
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [blockedUntil, driverId]);
 
   // Today's stats
   useEffect(() => {
@@ -568,8 +599,25 @@ const DriverHome = () => {
           </Card>
         )}
 
+        {/* Blocked state */}
+        {!activeDelivery && isOnline && deliveryMode === 'queue' && blockedUntil && new Date(blockedUntil).getTime() > Date.now() && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="h-20 w-20 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
+              <Ban className="h-10 w-10 text-destructive" />
+            </div>
+            <p className="font-semibold text-lg">Temporariamente bloqueado</p>
+            <p className="text-sm text-muted-foreground mt-1">Você perdeu/recusou muitas ofertas</p>
+            {blockCountdown && (
+              <div className="mt-4 px-6 py-3 rounded-xl bg-destructive/10 border border-destructive/20">
+                <p className="text-xs text-muted-foreground">Desbloqueio em</p>
+                <p className="text-2xl font-bold text-destructive">{blockCountdown}</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Queue mode: waiting in queue */}
-        {!activeDelivery && isOnline && deliveryMode === 'queue' && !currentOffer && (
+        {!activeDelivery && isOnline && deliveryMode === 'queue' && !currentOffer && (!blockedUntil || new Date(blockedUntil).getTime() <= Date.now()) && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="relative mb-4">
               <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
