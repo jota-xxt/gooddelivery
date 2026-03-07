@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Star, MapPin } from 'lucide-react';
+import { Star, MapPin, LocateFixed, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import MapPicker from '@/components/MapPicker';
 
@@ -18,6 +18,32 @@ const EstablishmentProfile = () => {
   const [mapOpen, setMapOpen] = useState(false);
   const [pickedLocation, setPickedLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [gettingLocation, setGettingLocation] = useState(false);
+
+  const handleGetCurrentLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      toast.error('Seu navegador não suporta geolocalização');
+      return;
+    }
+    setGettingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setPickedLocation({ lat: latitude, lng: longitude });
+        setGettingLocation(false);
+        toast.success('Localização obtida!');
+      },
+      (error) => {
+        setGettingLocation(false);
+        if (error.code === error.PERMISSION_DENIED) {
+          toast.error('Permissão de localização negada. Habilite nas configurações do navegador.');
+        } else {
+          toast.error('Não foi possível obter sua localização');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -118,7 +144,18 @@ const EstablishmentProfile = () => {
           <DialogHeader>
             <DialogTitle>Definir Localização do Estabelecimento</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">Busque seu endereço ou clique no mapa para marcar o local de retirada.</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm text-muted-foreground flex-1">Busque seu endereço, clique no mapa ou use sua localização atual.</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGetCurrentLocation}
+              disabled={gettingLocation}
+            >
+              {gettingLocation ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <LocateFixed className="h-4 w-4 mr-1" />}
+              {gettingLocation ? 'Obtendo...' : 'Usar minha localização'}
+            </Button>
+          </div>
           <MapPicker
             mode="pick"
             searchEnabled
