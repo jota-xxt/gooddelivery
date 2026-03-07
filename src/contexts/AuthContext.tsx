@@ -26,11 +26,13 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [role, setRole] = useState<AppRole | null>(null);
-  const [status, setStatus] = useState<ApprovalStatus | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [state, setState] = useState<{
+    user: User | null;
+    session: Session | null;
+    role: AppRole | null;
+    status: ApprovalStatus | null;
+    loading: boolean;
+  }>({ user: null, session: null, role: null, status: null, loading: true });
 
   const fetchUserMeta = async (userId: string) => {
     try {
@@ -50,44 +52,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     let isMounted = true;
-    // Track which user ID we've already fetched meta for to avoid duplicates
     let lastFetchedUserId: string | null = null;
+    let initialized = false;
 
     const handleSession = async (newSession: Session | null) => {
       if (!isMounted) return;
-
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
 
       const userId = newSession?.user?.id;
       if (userId && userId !== lastFetchedUserId) {
         lastFetchedUserId = userId;
         const meta = await fetchUserMeta(userId);
         if (!isMounted) return;
-        setRole(meta.role);
-        setStatus(meta.status);
-      } else if (!userId) {
+        setState({
+          user: newSession?.user ?? null,
+          session: newSession,
+          role: meta.role,
+          status: meta.status,
+          loading: false,
+        });
+      } else if (userId && userId === lastFetchedUserId) {
+        // Same user, just update session without re-fetching
+        setState(prev => ({ ...prev, session: newSession, user: newSession?.user ?? null }));
+      } else {
         lastFetchedUserId = null;
-        setRole(null);
-        setStatus(null);
+        setState({ user: null, session: null, role: null, status: null, loading: false });
       }
-
-      if (isMounted) setLoading(false);
     };
 
-    // Set up listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, newSession) => {
+        initialized = true;
         handleSession(newSession);
       }
     );
 
-    // Then restore session — the onAuthStateChange INITIAL_SESSION event
-    // will fire and be handled by the listener above.
-    // As a fallback, also call getSession:
     supabase.auth.getSession().then(({ data: { session: restoredSession } }) => {
-      // Only use this if loading is still true (listener hasn't fired yet)
-      if (isMounted && loading) {
+      if (isMounted && !initialized) {
         handleSession(restoredSession);
       }
     });
@@ -104,15 +104,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.error('Error signing out:', err);
     } finally {
-      setUser(null);
-      setSession(null);
-      setRole(null);
-      setStatus(null);
+      setState({ user: null, session: null, role: null, status: null, loading: false });
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, role, status, loading, signOut }}>
+    <AuthContext.Provider value={{ ...state, signOut }}>
       {children}
     </AuthContext.Provider>
   );
