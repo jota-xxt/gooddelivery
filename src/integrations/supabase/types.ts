@@ -157,6 +157,7 @@ export type Database = {
       }
       drivers: {
         Row: {
+          blocked_until: string | null
           cpf: string
           created_at: string
           id: string
@@ -169,6 +170,7 @@ export type Database = {
           vehicle_type: Database["public"]["Enums"]["vehicle_type"]
         }
         Insert: {
+          blocked_until?: string | null
           cpf: string
           created_at?: string
           id?: string
@@ -181,6 +183,7 @@ export type Database = {
           vehicle_type: Database["public"]["Enums"]["vehicle_type"]
         }
         Update: {
+          blocked_until?: string | null
           cpf?: string
           created_at?: string
           id?: string

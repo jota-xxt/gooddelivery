@@ -1,0 +1,1 @@
+ALTER TABLE public.drivers ADD COLUMN blocked_until timestamptz DEFAULT NULL;
