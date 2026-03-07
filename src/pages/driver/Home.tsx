@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDeliveryActions } from '@/hooks/useDeliveryActions';
+import MapPicker, { type MapMarker } from '@/components/MapPicker';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -21,6 +22,8 @@ interface DeliveryWithEstablishment {
   urgency: string;
   establishment_name?: string;
   establishment_address?: string;
+  establishment_lat?: number | null;
+  establishment_lng?: number | null;
 }
 
 interface DeliveryOffer {
