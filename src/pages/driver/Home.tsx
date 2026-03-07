@@ -120,6 +120,34 @@ const DriverHome = () => {
       });
   }, [driverId, activeDelivery]);
 
+  // Geocode addresses for active delivery map
+  useEffect(() => {
+    if (!activeDelivery) { setDeliveryMapMarkers([]); return; }
+    const markers: MapMarker[] = [];
+    const promises: Promise<void>[] = [];
+
+    // Establishment pin (use saved coords or geocode)
+    if (activeDelivery.establishment_lat && activeDelivery.establishment_lng) {
+      markers.push({ lat: activeDelivery.establishment_lat, lng: activeDelivery.establishment_lng, label: activeDelivery.establishment_name ?? 'Coleta', color: '#3b82f6' });
+    } else if (activeDelivery.establishment_address) {
+      promises.push(
+        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(activeDelivery.establishment_address)}&limit=1&countrycodes=br`, { headers: { 'User-Agent': 'GoodDeliveryApp/1.0' } })
+          .then(r => r.json())
+          .then(data => { if (data.length > 0) markers.push({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: activeDelivery.establishment_name ?? 'Coleta', color: '#3b82f6' }); })
+          .catch(() => {})
+      );
+    }
+
+    // Delivery address geocode
+    promises.push(
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(activeDelivery.delivery_address)}&limit=1&countrycodes=br`, { headers: { 'User-Agent': 'GoodDeliveryApp/1.0' } })
+        .then(r => r.json())
+        .then(data => { if (data.length > 0) markers.push({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: 'Entrega', color: '#10b981' }); })
+        .catch(() => {})
+    );
+
+    Promise.all(promises).then(() => setDeliveryMapMarkers(markers));
+
   // Queue position
   const fetchQueuePosition = useCallback(async () => {
     if (!driverId || deliveryMode !== 'queue' || !isOnline) {
