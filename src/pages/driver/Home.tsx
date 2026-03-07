@@ -602,9 +602,6 @@ const DriverHome = () => {
                         R$ {Number(d.delivery_fee).toFixed(2)}
                       </span>
                       <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          <Clock className="h-3 w-3 mr-1" />{d.prep_time_minutes}min
-                        </Badge>
                         <span className="text-xs text-muted-foreground">{timeSince(d.created_at)}</span>
                       </div>
                     </div>
