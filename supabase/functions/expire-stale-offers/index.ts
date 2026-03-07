@@ -27,6 +27,15 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Load penalty settings
+    const { data: penaltySettings } = await supabaseAdmin
+      .from("app_settings")
+      .select("key, value")
+      .in("key", ["queue_penalty_threshold", "queue_penalty_duration_minutes"]);
+
+    const threshold = Number(penaltySettings?.find(r => r.key === "queue_penalty_threshold")?.value ?? 3);
+    const durationMinutes = Number(penaltySettings?.find(r => r.key === "queue_penalty_duration_minutes")?.value ?? 30);
+
     // 1. Expire all pending offers older than 60 seconds
     const cutoff = new Date(Date.now() - 60000).toISOString();
     const { data: expiredOffers } = await supabaseAdmin
@@ -34,7 +43,36 @@ Deno.serve(async (req) => {
       .update({ status: "expired", responded_at: new Date().toISOString() })
       .eq("status", "pending")
       .lt("offered_at", cutoff)
-      .select("delivery_id");
+      .select("delivery_id, driver_id");
+
+    // 1b. Apply penalty to drivers whose offers just expired
+    if (expiredOffers && expiredOffers.length > 0) {
+      const driverIds = [...new Set(expiredOffers.map(o => o.driver_id))];
+      const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+      for (const did of driverIds) {
+        const { data: infractions } = await supabaseAdmin
+          .from("delivery_offers")
+          .select("id")
+          .eq("driver_id", did)
+          .in("status", ["rejected", "expired"])
+          .gte("responded_at", since24h);
+
+        if ((infractions?.length ?? 0) >= threshold) {
+          const blockedUntil = new Date(Date.now() + durationMinutes * 60 * 1000).toISOString();
+          await supabaseAdmin.from("drivers").update({ blocked_until: blockedUntil }).eq("id", did);
+
+          const { data: driverData } = await supabaseAdmin.from("drivers").select("user_id").eq("id", did).single();
+          if (driverData) {
+            await supabaseAdmin.from("notifications").insert({
+              user_id: driverData.user_id,
+              title: "Você foi temporariamente bloqueado",
+              message: `Você perdeu/recusou ${infractions?.length} ofertas nas últimas 24h. Bloqueado por ${durationMinutes} minutos.`,
+            });
+          }
+        }
+      }
+    }
 
     // 2. Find all deliveries in "searching" that have NO active pending offer
     const { data: searchingDeliveries } = await supabaseAdmin

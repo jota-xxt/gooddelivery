@@ -139,6 +139,65 @@ async function handleAccept(
   });
 }
 
+async function getPenaltySettings(supabaseAdmin: ReturnType<typeof createClient>) {
+  const { data } = await supabaseAdmin
+    .from("app_settings")
+    .select("key, value")
+    .in("key", ["queue_penalty_threshold", "queue_penalty_duration_minutes"]);
+
+  const settings = { threshold: 3, durationMinutes: 30 };
+  if (data) {
+    const t = data.find(r => r.key === "queue_penalty_threshold");
+    const d = data.find(r => r.key === "queue_penalty_duration_minutes");
+    if (t) settings.threshold = Number(t.value);
+    if (d) settings.durationMinutes = Number(d.value);
+  }
+  return settings;
+}
+
+async function checkAndApplyPenalty(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  driverId: string
+) {
+  const { threshold, durationMinutes } = await getPenaltySettings(supabaseAdmin);
+
+  // Count rejections + expirations in the last 24h
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data: infractions } = await supabaseAdmin
+    .from("delivery_offers")
+    .select("id")
+    .eq("driver_id", driverId)
+    .in("status", ["rejected", "expired"])
+    .gte("responded_at", since);
+
+  const count = infractions?.length ?? 0;
+  if (count >= threshold) {
+    const blockedUntil = new Date(Date.now() + durationMinutes * 60 * 1000).toISOString();
+    await supabaseAdmin
+      .from("drivers")
+      .update({ blocked_until: blockedUntil })
+      .eq("id", driverId);
+
+    // Notify driver
+    const { data: driverData } = await supabaseAdmin
+      .from("drivers")
+      .select("user_id")
+      .eq("id", driverId)
+      .single();
+
+    if (driverData) {
+      await supabaseAdmin.from("notifications").insert({
+        user_id: driverData.user_id,
+        title: "Você foi temporariamente bloqueado",
+        message: `Você recusou/perdeu ${count} ofertas nas últimas 24h. Bloqueado por ${durationMinutes} minutos.`,
+      });
+    }
+
+    return true;
+  }
+  return false;
+}
+
 async function handleReject(
   supabaseAdmin: ReturnType<typeof createClient>,
   delivery: Record<string, unknown>,
@@ -168,6 +227,9 @@ async function handleReject(
     status: "rejected",
     responded_at: new Date().toISOString(),
   }).eq("id", offer.id);
+
+  // Check and apply penalty
+  await checkAndApplyPenalty(supabaseAdmin, driver.id);
 
   // Trigger queue to find next driver
   await processQueueForDelivery(supabaseAdmin, deliveryId);
