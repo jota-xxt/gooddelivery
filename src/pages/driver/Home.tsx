@@ -521,6 +521,15 @@ const DriverHome = () => {
                 <span className="text-2xl font-bold text-primary">R$ {Number(activeDelivery.delivery_fee).toFixed(2)}</span>
               </div>
 
+              {/* Delivery map */}
+              {deliveryMapMarkers.length > 0 && (
+                <MapPicker
+                  mode="view"
+                  markers={deliveryMapMarkers}
+                  height="180px"
+                />
+              )}
+
               {/* Route visualization */}
               <div className="relative pl-6 space-y-3">
                 <div className="absolute left-[11px] top-2 bottom-2 w-0.5 border-l-2 border-dashed border-muted-foreground/30" />
