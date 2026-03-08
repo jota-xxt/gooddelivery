@@ -373,7 +373,7 @@ async function handleCancel(
 
   const { data: est } = await supabaseAdmin
     .from("establishments")
-    .select("user_id")
+    .select("user_id, phone, responsible_name")
     .eq("id", delivery.establishment_id as string)
     .single();
 
@@ -383,12 +383,20 @@ async function handleCancel(
       title: "Entrega cancelada",
       message: `A entrega para ${delivery.delivery_address} foi cancelada pelo admin.`,
     });
+    // WhatsApp to establishment
+    if (est.phone) {
+      sendWhatsApp("delivery_cancelled", est.phone, {
+        name: est.responsible_name,
+        address: delivery.delivery_address as string,
+        reason: cancelReason || "Cancelado pelo administrador",
+      });
+    }
   }
 
   if (delivery.driver_id) {
     const { data: driverData } = await supabaseAdmin
       .from("drivers")
-      .select("user_id")
+      .select("user_id, phone")
       .eq("id", delivery.driver_id as string)
       .single();
 
@@ -398,6 +406,19 @@ async function handleCancel(
         title: "Corrida cancelada",
         message: `A corrida para ${delivery.delivery_address} foi cancelada pelo admin.`,
       });
+      // WhatsApp to driver
+      if (driverData.phone) {
+        const { data: driverProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", driverData.user_id)
+          .single();
+        sendWhatsApp("delivery_cancelled", driverData.phone, {
+          name: driverProfile?.full_name ?? "Entregador",
+          address: delivery.delivery_address as string,
+          reason: cancelReason || "Cancelado pelo administrador",
+        });
+      }
     }
   }
 
