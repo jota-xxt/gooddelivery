@@ -172,7 +172,7 @@ const EstablishmentOrders = () => {
         <h1 className="text-2xl font-bold">Pedidos</h1>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Nova Entrega</Button>
+            <span />
           </DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>Solicitar Entrega</DialogTitle></DialogHeader>
