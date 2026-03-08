@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
-import { Truck, Bike, ArrowLeft, User, Mail, Lock, Phone, FileText, Building2, MapPin, ChevronRight } from 'lucide-react';
+import { Truck, Bike, ArrowLeft, User, Mail, Lock, Phone, FileText, Building2, MapPin, ChevronRight, LocateFixed } from 'lucide-react';
+import MapPicker from '@/components/MapPicker';
 
 type UserType = 'driver' | 'establishment';
 type VehicleType = 'motorcycle' | 'bicycle';
@@ -34,6 +35,9 @@ const Register = () => {
   const [businessName, setBusinessName] = useState('');
   const [cnpj, setCnpj] = useState('');
   const [address, setAddress] = useState('');
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [locatingGps, setLocatingGps] = useState(false);
 
   const formatPhone = useCallback((value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -64,7 +68,7 @@ const Register = () => {
     if (step === 1) return fullName.trim().length >= 3 && email.includes('@') && password.length >= 6 && phone.replace(/\D/g, '').length >= 10;
     if (step === 2) {
       if (userType === 'driver') return cpf.replace(/\D/g, '').length === 11;
-      return businessName.trim().length >= 2 && cnpj.replace(/\D/g, '').length === 14 && address.trim().length >= 5;
+      return businessName.trim().length >= 2 && cnpj.replace(/\D/g, '').length === 14 && address.trim().length >= 5 && latitude !== null && longitude !== null;
     }
     return false;
   };
@@ -122,6 +126,8 @@ const Register = () => {
           address,
           phone,
           responsible_name: fullName,
+          latitude,
+          longitude,
         });
         if (estError) {
           console.error('Establishment insert error:', estError);
