@@ -147,19 +147,58 @@ Deno.serve(async (req) => {
 
     if (offerError) throw offerError;
 
+    // Get delivery details for WhatsApp
+    const { data: deliveryDetails } = await supabaseAdmin
+      .from("deliveries")
+      .select("delivery_address, delivery_fee")
+      .eq("id", delivery_id)
+      .single();
+
     // Notify the driver
     const { data: driverData } = await supabaseAdmin
       .from("drivers")
-      .select("user_id")
+      .select("user_id, phone")
       .eq("id", selectedDriverId)
       .single();
 
     if (driverData) {
+      // Internal notification
       await supabaseAdmin.from("notifications").insert({
         user_id: driverData.user_id,
         title: "Nova corrida para você!",
         message: "Você recebeu uma oferta de corrida. Aceite em até 60 segundos!",
       });
+
+      // WhatsApp notification
+      if (driverData.phone && deliveryDetails) {
+        const cleanPhone = driverData.phone.replace(/\D/g, '');
+        const whatsappPhone = cleanPhone.length === 11 ? `55${cleanPhone}` : cleanPhone;
+        
+        // Get driver name
+        const { data: profile } = await supabaseAdmin
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", driverData.user_id)
+          .single();
+
+        const sendWhatsAppUrl = Deno.env.get("SUPABASE_URL")! + "/functions/v1/send-whatsapp";
+        fetch(sendWhatsAppUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({
+            phone: whatsappPhone,
+            template: "new_delivery_offer",
+            vars: {
+              name: profile?.full_name ?? "Entregador",
+              address: deliveryDetails.delivery_address,
+              fee: Number(deliveryDetails.delivery_fee).toFixed(2),
+            },
+          }),
+        }).catch(() => {});
+      }
     }
 
     return new Response(JSON.stringify({ success: true, driver_id: selectedDriverId }), {
