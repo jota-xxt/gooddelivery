@@ -297,6 +297,15 @@ const EstablishmentOrders = () => {
           ))}
         </div>
       )}
+
+      {/* FAB - Floating Action Button */}
+      <Button
+        onClick={() => setDialogOpen(true)}
+        className="fixed bottom-20 right-4 h-14 w-14 rounded-full shadow-lg shadow-primary/30 z-50 p-0"
+        size="icon"
+      >
+        <Plus className="h-6 w-6" />
+      </Button>
     </div>
   );
 };
