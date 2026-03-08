@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { MapPin, DollarSign, Navigation, Clock, Loader2, Store, Package, CheckCircle2, Power, Truck, Radio, ListOrdered, X, Timer, Ban } from 'lucide-react';
+import { MapPin, DollarSign, Navigation, Clock, Loader2, Store, Package, CheckCircle2, Power, Truck, Radio, ListOrdered, X, Timer, Ban, MessageSquare } from 'lucide-react';
+import ChatDialog from '@/components/ChatDialog';
 
 interface DeliveryWithEstablishment {
   id: string;
@@ -54,6 +55,7 @@ const DriverHome = () => {
   const [blockedUntil, setBlockedUntil] = useState<string | null>(null);
   const [blockCountdown, setBlockCountdown] = useState<string | null>(null);
   const [deliveryMapMarkers, setDeliveryMapMarkers] = useState<MapMarker[]>([]);
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Load driver + delivery mode
   useEffect(() => {
@@ -583,6 +585,14 @@ const DriverHome = () => {
                   variant="outline"
                   size="icon"
                   className="h-12 w-12"
+                  onClick={() => setChatOpen(true)}
+                >
+                  <MessageSquare className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-12 w-12"
                   onClick={() => openMaps(
                     activeDelivery.status === 'accepted' || activeDelivery.status === 'collecting'
                       ? activeDelivery.establishment_address ?? ''
@@ -776,6 +786,16 @@ const DriverHome = () => {
           </div>
         )}
       </div>
+
+      {/* Chat Dialog */}
+      {activeDelivery && (
+        <ChatDialog
+          deliveryId={activeDelivery.id}
+          open={chatOpen}
+          onOpenChange={setChatOpen}
+          otherPartyName={activeDelivery.establishment_name}
+        />
+      )}
     </div>
   );
 };
