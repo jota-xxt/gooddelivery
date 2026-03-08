@@ -17,6 +17,7 @@ import AdminApprovals from "./pages/admin/Approvals";
 import AdminUsers from "./pages/admin/Users";
 import AdminFinancial from "./pages/admin/Financial";
 import AdminSettings from "./pages/admin/Settings";
+import AdminDeliveries from "./pages/admin/Deliveries";
 
 import AdminMapOverview from "./pages/admin/MapOverview";
 
@@ -73,6 +74,7 @@ const App = () => (
               </RoleGuard>
             }>
               <Route index element={<AdminDashboard />} />
+              <Route path="deliveries" element={<AdminDeliveries />} />
               <Route path="approvals" element={<AdminApprovals />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="financial" element={<AdminFinancial />} />
