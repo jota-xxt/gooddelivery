@@ -786,6 +786,16 @@ const DriverHome = () => {
           </div>
         )}
       </div>
+
+      {/* Chat Dialog */}
+      {activeDelivery && (
+        <ChatDialog
+          deliveryId={activeDelivery.id}
+          open={chatOpen}
+          onOpenChange={setChatOpen}
+          otherPartyName={activeDelivery.establishment_name}
+        />
+      )}
     </div>
   );
 };
