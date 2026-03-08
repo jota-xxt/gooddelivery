@@ -85,14 +85,7 @@ const MapPicker = ({
     // Small timeout to ensure proper sizing
     setTimeout(() => map.invalidateSize(), 100);
 
-    // Watch for container resizes (e.g. sidebar open/close)
-    const ro = new ResizeObserver(() => {
-      map.invalidateSize();
-    });
-    if (containerRef.current) ro.observe(containerRef.current);
-
     return () => {
-      ro.disconnect();
       map.remove();
       mapRef.current = null;
     };

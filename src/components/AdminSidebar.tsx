@@ -1,10 +1,10 @@
-import { forwardRef, useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { LayoutDashboard, Users, Settings, DollarSign, Truck, Menu, MapPin, Package } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 const navItems = [
   { label: 'Dashboard', icon: <LayoutDashboard className="h-5 w-5" />, path: '/admin' },
@@ -16,12 +16,12 @@ const navItems = [
   { label: 'Configurações', icon: <Settings className="h-5 w-5" />, path: '/admin/settings' },
 ];
 
-const NavContent = forwardRef<HTMLDivElement, { onNavigate?: () => void }>(({ onNavigate }, ref) => {
+const NavContent = ({ onNavigate }: { onNavigate?: () => void }) => {
   const location = useLocation();
   const { signOut } = useAuth();
 
   return (
-    <div ref={ref} className="flex h-full flex-col">
+    <>
       <div className="flex items-center gap-3 p-6 border-b">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
           <Truck className="h-5 w-5 text-primary-foreground" />
@@ -57,10 +57,9 @@ const NavContent = forwardRef<HTMLDivElement, { onNavigate?: () => void }>(({ on
           Sair
         </Button>
       </div>
-    </div>
+    </>
   );
-});
-NavContent.displayName = 'NavContent';
+};
 
 const AdminSidebar = () => {
   const [open, setOpen] = useState(false);
@@ -76,8 +75,6 @@ const AdminSidebar = () => {
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="p-0 w-64 flex flex-col">
-            <SheetTitle className="sr-only">Menu administrativo</SheetTitle>
-            <SheetDescription className="sr-only">Navegação lateral do painel admin</SheetDescription>
             <NavContent onNavigate={() => setOpen(false)} />
           </SheetContent>
         </Sheet>
