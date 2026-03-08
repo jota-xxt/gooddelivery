@@ -1,10 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MapPin, Truck, Store, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Toggle } from '@/components/ui/toggle';
 import MapPicker, { type MapMarker } from '@/components/MapPicker';
 
 interface ActiveDelivery {
@@ -64,9 +65,10 @@ const geocodeAddress = async (address: string): Promise<{ lat: number; lng: numb
 const AdminMapOverview = () => {
   const [deliveries, setDeliveries] = useState<ActiveDelivery[]>([]);
   const [drivers, setDrivers] = useState<OnlineDriver[]>([]);
-  const [markers, setMarkers] = useState<MapMarker[]>([]);
+  const [allMarkers, setAllMarkers] = useState<MapMarker[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(['searching', 'accepted', 'collecting', 'delivering']));
 
   const fetchData = useCallback(async () => {
     const [{ data: dels }, { data: drvs }, { data: ests }] = await Promise.all([
@@ -134,7 +136,7 @@ const AdminMapOverview = () => {
 
     setDeliveries(enrichedDeliveries);
     setDrivers((drvs ?? []) as any);
-    setMarkers(newMarkers);
+    setAllMarkers(newMarkers);
     setLoading(false);
   }, []);
 
@@ -152,6 +154,39 @@ const AdminMapOverview = () => {
     await fetchData();
     setRefreshing(false);
   };
+
+  const toggleStatus = (s: string) => {
+    setStatusFilters(prev => {
+      const n = new Set(prev);
+      if (n.has(s)) n.delete(s); else n.add(s);
+      return n;
+    });
+  };
+
+  const filteredDeliveries = useMemo(() => deliveries.filter(d => statusFilters.has(d.status)), [deliveries, statusFilters]);
+
+  const markers = useMemo(() => {
+    const filtered = new Set(filteredDeliveries.map(d => d.id));
+    return allMarkers.filter((_, i) => {
+      // markers are added in pairs per delivery (establishment + destination)
+      // simpler: rebuild from filtered deliveries
+      return true;
+    });
+  }, [allMarkers, filteredDeliveries]);
+
+  // Actually rebuild markers from filtered deliveries
+  const filteredMarkers = useMemo(() => {
+    const m: MapMarker[] = [];
+    filteredDeliveries.forEach(d => {
+      if (d.establishment_lat && d.establishment_lng) {
+        m.push({ lat: d.establishment_lat, lng: d.establishment_lng, label: `<b>${d.establishment_name ?? 'Estabelecimento'}</b><br/>Coleta`, color: statusColors[d.status] ?? '#666' });
+      }
+      if (d.delivery_lat && d.delivery_lng) {
+        m.push({ lat: d.delivery_lat, lng: d.delivery_lng, label: `<b>Entrega</b><br/>${d.delivery_address}<br/><span style="color:${statusColors[d.status]}">${statusLabels[d.status]}</span>`, color: '#10b981' });
+      }
+    });
+    return m;
+  }, [filteredDeliveries]);
 
   if (loading) {
     return (
@@ -177,36 +212,39 @@ const AdminMapOverview = () => {
         </Button>
       </div>
 
+      {/* Status Filters */}
+      <div className="flex flex-wrap gap-2">
+        {Object.entries(statusLabels).map(([key, label]) => (
+          <Toggle key={key} pressed={statusFilters.has(key)} onPressedChange={() => toggleStatus(key)}
+            className="gap-1.5 data-[state=on]:bg-accent">
+            <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: statusColors[key] }} />
+            {label}
+          </Toggle>
+        ))}
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="py-3 text-center">
-            <p className="text-2xl font-bold text-primary">{deliveries.length}</p>
-            <p className="text-xs text-muted-foreground">Entregas ativas</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-3 text-center">
-            <p className="text-2xl font-bold text-primary">{drivers.length}</p>
-            <p className="text-xs text-muted-foreground">Entregadores online</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-3 text-center">
-            <p className="text-2xl font-bold" style={{ color: '#f59e0b' }}>
-              {deliveries.filter(d => d.status === 'searching').length}
-            </p>
-            <p className="text-xs text-muted-foreground">Buscando entregador</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-3 text-center">
-            <p className="text-2xl font-bold" style={{ color: '#10b981' }}>
-              {deliveries.filter(d => d.status === 'delivering').length}
-            </p>
-            <p className="text-xs text-muted-foreground">Em entrega</p>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="py-3 text-center">
+          <p className="text-2xl font-bold text-primary">{filteredDeliveries.length}</p>
+          <p className="text-xs text-muted-foreground">Entregas visíveis</p>
+        </CardContent></Card>
+        <Card><CardContent className="py-3 text-center">
+          <p className="text-2xl font-bold text-primary">{drivers.length}</p>
+          <p className="text-xs text-muted-foreground">Entregadores online</p>
+        </CardContent></Card>
+        <Card><CardContent className="py-3 text-center">
+          <p className="text-2xl font-bold" style={{ color: '#f59e0b' }}>
+            {deliveries.filter(d => d.status === 'searching').length}
+          </p>
+          <p className="text-xs text-muted-foreground">Buscando entregador</p>
+        </CardContent></Card>
+        <Card><CardContent className="py-3 text-center">
+          <p className="text-2xl font-bold" style={{ color: '#10b981' }}>
+            {deliveries.filter(d => d.status === 'delivering').length}
+          </p>
+          <p className="text-xs text-muted-foreground">Em entrega</p>
+        </CardContent></Card>
       </div>
 
       {/* Map */}
@@ -214,9 +252,9 @@ const AdminMapOverview = () => {
         <CardContent className="p-2">
           <MapPicker
             mode="view"
-            markers={markers}
+            markers={filteredMarkers}
             height="500px"
-            zoom={markers.length > 0 ? undefined : 4}
+            zoom={filteredMarkers.length > 0 ? undefined : 4}
           />
         </CardContent>
       </Card>
