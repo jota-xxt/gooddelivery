@@ -1,10 +1,11 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MapPin, Truck, Store, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Toggle } from '@/components/ui/toggle';
 import MapPicker, { type MapMarker } from '@/components/MapPicker';
 
 interface ActiveDelivery {
@@ -64,9 +65,10 @@ const geocodeAddress = async (address: string): Promise<{ lat: number; lng: numb
 const AdminMapOverview = () => {
   const [deliveries, setDeliveries] = useState<ActiveDelivery[]>([]);
   const [drivers, setDrivers] = useState<OnlineDriver[]>([]);
-  const [markers, setMarkers] = useState<MapMarker[]>([]);
+  const [allMarkers, setAllMarkers] = useState<MapMarker[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [statusFilters, setStatusFilters] = useState<Set<string>>(new Set(['searching', 'accepted', 'collecting', 'delivering']));
 
   const fetchData = useCallback(async () => {
     const [{ data: dels }, { data: drvs }, { data: ests }] = await Promise.all([
@@ -134,7 +136,7 @@ const AdminMapOverview = () => {
 
     setDeliveries(enrichedDeliveries);
     setDrivers((drvs ?? []) as any);
-    setMarkers(newMarkers);
+    setAllMarkers(newMarkers);
     setLoading(false);
   }, []);
 
