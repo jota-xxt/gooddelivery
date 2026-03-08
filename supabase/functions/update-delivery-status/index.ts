@@ -30,14 +30,45 @@ async function getDriverByUserId(supabaseAdmin: ReturnType<typeof createClient>,
   return data;
 }
 
-async function notifyEstablishment(supabaseAdmin: ReturnType<typeof createClient>, establishmentId: string, title: string, message: string) {
+async function sendWhatsApp(template: string, phone: string, vars: Record<string, string>) {
+  try {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const whatsappPhone = cleanPhone.length === 11 ? `55${cleanPhone}` : cleanPhone;
+    const url = Deno.env.get("SUPABASE_URL")! + "/functions/v1/send-whatsapp";
+    fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({ phone: whatsappPhone, template, vars }),
+    }).catch(() => {});
+  } catch {}
+}
+
+async function notifyEstablishment(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  establishmentId: string,
+  title: string,
+  message: string,
+  whatsappTemplate?: string,
+  whatsappVars?: Record<string, string>
+) {
   const { data: est } = await supabaseAdmin
     .from("establishments")
-    .select("user_id")
+    .select("user_id, phone, responsible_name")
     .eq("id", establishmentId)
     .single();
   if (est) {
     await supabaseAdmin.from("notifications").insert({ user_id: est.user_id, title, message });
+    
+    // Send WhatsApp if template provided
+    if (whatsappTemplate && est.phone) {
+      sendWhatsApp(whatsappTemplate, est.phone, {
+        name: est.responsible_name,
+        ...whatsappVars,
+      });
+    }
   }
   return est;
 }
