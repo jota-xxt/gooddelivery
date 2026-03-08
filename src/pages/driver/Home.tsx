@@ -61,13 +61,18 @@ const DriverHome = () => {
     Promise.all([
       supabase.from('drivers').select('id, is_online, blocked_until').eq('user_id', user.id).maybeSingle(),
       supabase.from('app_settings').select('value').eq('key', 'delivery_mode').maybeSingle(),
-    ]).then(([{ data: driverData }, { data: modeData }]) => {
+    ]).then(async ([{ data: driverData }, { data: modeData }]) => {
+      const mode = (modeData?.value as 'pool' | 'queue') ?? 'pool';
       if (driverData) {
         setDriverId(driverData.id);
         setIsOnline(driverData.is_online);
         setBlockedUntil((driverData as any).blocked_until ?? null);
+        // Fix: if driver is online in queue mode but queue_joined_at is null, set it
+        if (driverData.is_online && mode === 'queue' && !(driverData as any).queue_joined_at) {
+          await supabase.from('drivers').update({ queue_joined_at: new Date().toISOString() } as any).eq('id', driverData.id);
+        }
       }
-      if (modeData) setDeliveryMode(modeData.value as 'pool' | 'queue');
+      if (modeData) setDeliveryMode(mode);
       setInitialLoading(false);
     });
   }, [user]);
