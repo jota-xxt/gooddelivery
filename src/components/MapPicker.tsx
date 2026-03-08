@@ -91,6 +91,7 @@ const MapPicker = ({
     observer.observe(containerRef.current);
 
     return () => {
+      observer.disconnect();
       map.remove();
       mapRef.current = null;
     };
