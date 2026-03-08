@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { MapPin, DollarSign, Navigation, Clock, Loader2, Store, Package, CheckCircle2, Power, Truck, Radio, ListOrdered, X, Timer, Ban } from 'lucide-react';
+import { MapPin, DollarSign, Navigation, Clock, Loader2, Store, Package, CheckCircle2, Power, Truck, Radio, ListOrdered, X, Timer, Ban, MessageSquare } from 'lucide-react';
+import ChatDialog from '@/components/ChatDialog';
 
 interface DeliveryWithEstablishment {
   id: string;
@@ -54,6 +55,7 @@ const DriverHome = () => {
   const [blockedUntil, setBlockedUntil] = useState<string | null>(null);
   const [blockCountdown, setBlockCountdown] = useState<string | null>(null);
   const [deliveryMapMarkers, setDeliveryMapMarkers] = useState<MapMarker[]>([]);
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Load driver + delivery mode
   useEffect(() => {
