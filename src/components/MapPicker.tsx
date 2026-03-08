@@ -115,6 +115,28 @@ const MapPicker = ({
     }
   }, [markers]);
 
+  useEffect(() => {
+    const invalidate = () => mapRef.current?.invalidateSize();
+
+    const handleSidebarChange = () => {
+      requestAnimationFrame(invalidate);
+      window.setTimeout(invalidate, 250);
+      window.setTimeout(invalidate, 600);
+    };
+
+    window.addEventListener('resize', invalidate);
+    window.addEventListener('orientationchange', handleSidebarChange);
+    window.addEventListener('admin-sidebar-toggle', handleSidebarChange);
+    window.addEventListener('admin-sidebar-transition-end', handleSidebarChange);
+
+    return () => {
+      window.removeEventListener('resize', invalidate);
+      window.removeEventListener('orientationchange', handleSidebarChange);
+      window.removeEventListener('admin-sidebar-toggle', handleSidebarChange);
+      window.removeEventListener('admin-sidebar-transition-end', handleSidebarChange);
+    };
+  }, []);
+
   const handleSearchSelect = (lat: number, lng: number) => {
     if (!mapRef.current) return;
     mapRef.current.setView([lat, lng], 16);
