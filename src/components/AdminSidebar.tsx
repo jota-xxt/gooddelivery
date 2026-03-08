@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { LayoutDashboard, Users, Settings, DollarSign, Truck, Menu, MapPin, Package } from 'lucide-react';
@@ -63,6 +63,15 @@ const NavContent = ({ onNavigate }: { onNavigate?: () => void }) => {
 
 const AdminSidebar = () => {
   const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('admin-sidebar-toggle', { detail: { open } }));
+    const timeout = window.setTimeout(() => {
+      window.dispatchEvent(new Event('admin-sidebar-transition-end'));
+    }, 550);
+
+    return () => window.clearTimeout(timeout);
+  }, [open]);
 
   return (
     <>
