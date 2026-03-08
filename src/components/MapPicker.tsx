@@ -82,8 +82,13 @@ const MapPicker = ({
       });
     }
 
-    // Small timeout to ensure proper sizing
+    // Ensure proper sizing on init and container resize
     setTimeout(() => map.invalidateSize(), 100);
+
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    observer.observe(containerRef.current);
 
     return () => {
       map.remove();
