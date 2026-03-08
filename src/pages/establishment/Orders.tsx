@@ -262,7 +262,7 @@ const EstablishmentOrders = () => {
                     </div>
                   )}
 
-                  {/* Driver info + fee */}
+                  {/* Driver info + fee + chat */}
                   <div className="flex items-center justify-between">
                     {d.driver_name ? (
                       <div className="flex items-center gap-2">
@@ -272,6 +272,20 @@ const EstablishmentOrders = () => {
                           </AvatarFallback>
                         </Avatar>
                         <span className="text-xs font-medium">{d.driver_name}</span>
+                        {['accepted', 'collecting', 'delivering'].includes(d.status) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-primary"
+                            onClick={() => {
+                              setChatDeliveryId(d.id);
+                              setChatDriverName(d.driver_name);
+                              setChatOpen(true);
+                            }}
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                          </Button>
+                        )}
                       </div>
                     ) : (
                       <span className="text-xs text-muted-foreground">Aguardando entregador...</span>
@@ -330,6 +344,19 @@ const EstablishmentOrders = () => {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Chat Dialog */}
+      {chatDeliveryId && (
+        <ChatDialog
+          deliveryId={chatDeliveryId}
+          open={chatOpen}
+          onOpenChange={(open) => {
+            setChatOpen(open);
+            if (!open) setChatDeliveryId(null);
+          }}
+          otherPartyName={chatDriverName}
+        />
+      )}
     </div>
   );
 };
