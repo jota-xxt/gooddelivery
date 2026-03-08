@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { Plus, MapPin, Clock, Loader2, User, AlertTriangle, MessageSquare, Package, DollarSign, Truck } from 'lucide-react';
 import DeliveryTracker from '@/components/DeliveryTracker';
 import QuickStats from '@/components/QuickStats';
+import ChatDialog from '@/components/ChatDialog';
 
 interface DeliveryWithDriver {
   id: string;
@@ -46,6 +47,11 @@ const EstablishmentOrders = () => {
   const [urgency, setUrgency] = useState('normal');
   const [fee, setFee] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // Chat state
+  const [chatDeliveryId, setChatDeliveryId] = useState<string | null>(null);
+  const [chatDriverName, setChatDriverName] = useState<string | undefined>();
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     if (!user) return;
