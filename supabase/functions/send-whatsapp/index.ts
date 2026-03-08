@@ -5,6 +5,55 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+// ===== TEMPLATES DE MENSAGEM =====
+type TemplateKey =
+  | 'registration_received'
+  | 'registration_approved'
+  | 'registration_rejected'
+  | 'new_delivery_offer'
+  | 'delivery_accepted'
+  | 'delivery_collecting'
+  | 'delivery_delivering'
+  | 'delivery_completed'
+  | 'delivery_cancelled';
+
+interface TemplateVars {
+  name?: string;
+  address?: string;
+  fee?: string;
+  reason?: string;
+  role?: string;
+}
+
+const templates: Record<TemplateKey, (vars: TemplateVars) => string> = {
+  registration_received: (v) =>
+    `Olá ${v.name}! 👋\n\nSeu cadastro no *Good Delivery* foi recebido com sucesso! ✅\n\nEstamos analisando seus dados e você será notificado assim que sua conta for aprovada.\n\nObrigado por escolher o Good Delivery! 🚀`,
+
+  registration_approved: (v) =>
+    `Olá ${v.name}! 🎉\n\nSeu cadastro como *${v.role === 'driver' ? 'Entregador' : 'Estabelecimento'}* no *Good Delivery* foi *aprovado*! ✅\n\nVocê já pode acessar sua conta e começar a usar a plataforma.\n\nBoas entregas! 🚀`,
+
+  registration_rejected: (v) =>
+    `Olá ${v.name}! 😔\n\nInfelizmente seu cadastro no *Good Delivery* não foi aprovado.\n\n${v.reason ? `Motivo: ${v.reason}\n\n` : ''}Se tiver dúvidas, entre em contato conosco.\n\nEquipe Good Delivery`,
+
+  new_delivery_offer: (v) =>
+    `🚨 *Nova corrida disponível!*\n\nOlá ${v.name}!\n\n📍 Destino: ${v.address}\n💰 Valor: R$ ${v.fee}\n\nAceite em até *60 segundos* no app!\n\nGood Delivery 🏍️`,
+
+  delivery_accepted: (v) =>
+    `✅ *Entregador a caminho!*\n\nOlá ${v.name}!\n\nUm entregador aceitou seu pedido para *${v.address}* e está indo coletar.\n\nAcompanhe pelo app! 📱`,
+
+  delivery_collecting: (v) =>
+    `📦 *Entregador chegou!*\n\nOlá ${v.name}!\n\nO entregador chegou ao seu estabelecimento para coletar o pedido para *${v.address}*.\n\nPrepare o pedido! 🏃`,
+
+  delivery_delivering: (v) =>
+    `🛵 *Pedido saiu para entrega!*\n\nOlá ${v.name}!\n\nSeu pedido para *${v.address}* está a caminho do cliente!\n\nGood Delivery 📦`,
+
+  delivery_completed: (v) =>
+    `🎉 *Entrega concluída!*\n\nOlá ${v.name}!\n\nA entrega para *${v.address}* foi finalizada com sucesso! ✅\n\nObrigado por usar o Good Delivery! ⭐`,
+
+  delivery_cancelled: (v) =>
+    `❌ *Entrega cancelada*\n\nOlá ${v.name}!\n\nA entrega para *${v.address}* foi cancelada.\n\n${v.reason ? `Motivo: ${v.reason}\n\n` : ''}Good Delivery`,
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -23,10 +72,29 @@ serve(async (req) => {
       });
     }
 
-    const { phone, message } = await req.json();
+    const body = await req.json();
+    const { phone, message, template, vars } = body as {
+      phone: string;
+      message?: string;
+      template?: TemplateKey;
+      vars?: TemplateVars;
+    };
 
-    if (!phone || !message) {
-      return new Response(JSON.stringify({ error: 'phone and message required' }), {
+    if (!phone) {
+      return new Response(JSON.stringify({ error: 'phone is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Build message: use template if provided, otherwise raw message
+    let finalMessage = message;
+    if (template && templates[template]) {
+      finalMessage = templates[template](vars ?? {});
+    }
+
+    if (!finalMessage) {
+      return new Response(JSON.stringify({ error: 'message or valid template required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -42,7 +110,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         number: phone,
-        text: message,
+        text: finalMessage,
       }),
     });
 
@@ -56,6 +124,7 @@ serve(async (req) => {
       });
     }
 
+    console.log(`WhatsApp sent [${template ?? 'raw'}] to ${phone}`);
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

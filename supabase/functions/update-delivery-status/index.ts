@@ -30,14 +30,45 @@ async function getDriverByUserId(supabaseAdmin: ReturnType<typeof createClient>,
   return data;
 }
 
-async function notifyEstablishment(supabaseAdmin: ReturnType<typeof createClient>, establishmentId: string, title: string, message: string) {
+async function sendWhatsApp(template: string, phone: string, vars: Record<string, string>) {
+  try {
+    const cleanPhone = phone.replace(/\D/g, '');
+    const whatsappPhone = cleanPhone.length === 11 ? `55${cleanPhone}` : cleanPhone;
+    const url = Deno.env.get("SUPABASE_URL")! + "/functions/v1/send-whatsapp";
+    fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({ phone: whatsappPhone, template, vars }),
+    }).catch(() => {});
+  } catch {}
+}
+
+async function notifyEstablishment(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  establishmentId: string,
+  title: string,
+  message: string,
+  whatsappTemplate?: string,
+  whatsappVars?: Record<string, string>
+) {
   const { data: est } = await supabaseAdmin
     .from("establishments")
-    .select("user_id")
+    .select("user_id, phone, responsible_name")
     .eq("id", establishmentId)
     .single();
   if (est) {
     await supabaseAdmin.from("notifications").insert({ user_id: est.user_id, title, message });
+    
+    // Send WhatsApp if template provided
+    if (whatsappTemplate && est.phone) {
+      sendWhatsApp(whatsappTemplate, est.phone, {
+        name: est.responsible_name,
+        ...whatsappVars,
+      });
+    }
   }
   return est;
 }
@@ -131,7 +162,9 @@ async function handleAccept(
     supabaseAdmin,
     delivery.establishment_id as string,
     "Entregador encontrado!",
-    `Um entregador aceitou a corrida para ${delivery.delivery_address}.`
+    `Um entregador aceitou a corrida para ${delivery.delivery_address}.`,
+    "delivery_accepted",
+    { address: delivery.delivery_address as string }
   );
 
   return new Response(JSON.stringify({ success: true, status: "accepted" }), {
@@ -288,12 +321,20 @@ async function handleAdvance(
     completed: `A entrega para ${delivery.delivery_address} foi concluída! ✅`,
   };
 
+  const statusToWhatsApp: Record<string, string> = {
+    collecting: "delivery_collecting",
+    delivering: "delivery_delivering",
+    completed: "delivery_completed",
+  };
+
   if (statusMessages[config.next]) {
     await notifyEstablishment(
       supabaseAdmin,
       delivery.establishment_id as string,
       config.next === "completed" ? "Entrega concluída!" : "Atualização de entrega",
-      statusMessages[config.next]
+      statusMessages[config.next],
+      statusToWhatsApp[config.next],
+      { address: delivery.delivery_address as string }
     );
   }
 
@@ -332,7 +373,7 @@ async function handleCancel(
 
   const { data: est } = await supabaseAdmin
     .from("establishments")
-    .select("user_id")
+    .select("user_id, phone, responsible_name")
     .eq("id", delivery.establishment_id as string)
     .single();
 
@@ -342,12 +383,20 @@ async function handleCancel(
       title: "Entrega cancelada",
       message: `A entrega para ${delivery.delivery_address} foi cancelada pelo admin.`,
     });
+    // WhatsApp to establishment
+    if (est.phone) {
+      sendWhatsApp("delivery_cancelled", est.phone, {
+        name: est.responsible_name,
+        address: delivery.delivery_address as string,
+        reason: cancelReason || "Cancelado pelo administrador",
+      });
+    }
   }
 
   if (delivery.driver_id) {
     const { data: driverData } = await supabaseAdmin
       .from("drivers")
-      .select("user_id")
+      .select("user_id, phone")
       .eq("id", delivery.driver_id as string)
       .single();
 
@@ -357,6 +406,19 @@ async function handleCancel(
         title: "Corrida cancelada",
         message: `A corrida para ${delivery.delivery_address} foi cancelada pelo admin.`,
       });
+      // WhatsApp to driver
+      if (driverData.phone) {
+        const { data: driverProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", driverData.user_id)
+          .single();
+        sendWhatsApp("delivery_cancelled", driverData.phone, {
+          name: driverProfile?.full_name ?? "Entregador",
+          address: delivery.delivery_address as string,
+          reason: cancelReason || "Cancelado pelo administrador",
+        });
+      }
     }
   }
 
