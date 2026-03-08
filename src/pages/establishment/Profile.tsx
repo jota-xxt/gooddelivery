@@ -5,8 +5,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Star, MapPin, LocateFixed, Loader2, Package, Clock, Bell, Store, Phone, FileText, LogOut } from 'lucide-react';
+import AvatarUpload from '@/components/AvatarUpload';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -15,6 +16,7 @@ import QuickStats from '@/components/QuickStats';
 
 const EstablishmentProfile = () => {
   const { user, signOut } = useAuth();
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [establishment, setEstablishment] = useState<{
     id: string; business_name: string; cnpj: string; address: string; phone: string;
     latitude: number | null; longitude: number | null; created_at: string; responsible_name: string;
@@ -53,19 +55,21 @@ const EstablishmentProfile = () => {
   useEffect(() => {
     if (!user) return;
 
-    // Fetch establishment data
-    supabase.from('establishments')
-      .select('id, business_name, cnpj, address, phone, latitude, longitude, created_at, responsible_name')
-      .eq('user_id', user.id).maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setEstablishment(data as any);
-          // Fetch delivery count
-          supabase.from('deliveries').select('id', { count: 'exact', head: true })
-            .eq('establishment_id', data.id).eq('status', 'completed')
-            .then(({ count }) => setTotalDeliveries(count ?? 0));
-        }
-      });
+    // Fetch establishment + avatar
+    Promise.all([
+      supabase.from('establishments')
+        .select('id, business_name, cnpj, address, phone, latitude, longitude, created_at, responsible_name')
+        .eq('user_id', user.id).maybeSingle(),
+      supabase.from('profiles').select('avatar_url').eq('user_id', user.id).maybeSingle(),
+    ]).then(([{ data }, { data: profileData }]) => {
+      if (data) {
+        setEstablishment(data as any);
+        supabase.from('deliveries').select('id', { count: 'exact', head: true })
+          .eq('establishment_id', data.id).eq('status', 'completed')
+          .then(({ count }) => setTotalDeliveries(count ?? 0));
+      }
+      if (profileData) setAvatarUrl(profileData.avatar_url);
+    });
 
     // Fetch ratings
     supabase.from('ratings').select('rating').eq('to_user_id', user.id)
@@ -110,11 +114,13 @@ const EstablishmentProfile = () => {
       {/* Hero Header */}
       <div className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground px-4 pt-8 pb-12 rounded-b-3xl">
         <div className="flex items-center gap-4">
-          <Avatar className="h-16 w-16 border-2 border-primary-foreground/30">
-            <AvatarFallback className="bg-primary-foreground/20 text-primary-foreground text-xl font-bold">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+          <AvatarUpload
+            userId={user!.id}
+            currentUrl={avatarUrl}
+            initials={initials}
+            size="h-16 w-16"
+            onUploaded={(url) => setAvatarUrl(url)}
+          />
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold truncate">{establishment?.business_name ?? 'Carregando...'}</h1>
             <p className="text-sm text-primary-foreground/70">{establishment?.responsible_name}</p>
