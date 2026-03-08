@@ -68,10 +68,10 @@ const AdminFinancial = () => {
       for (const d of drivers) { driverNames[d.id] = profileMap.get(d.user_id) ?? 'Entregador'; }
     }
 
-    const estMap = new Map(ests?.map((e: any) => [e.id, e.business_name]) ?? []);
+    const estMap = new Map<string, string>(ests?.map((e: any) => [e.id, e.business_name] as [string, string]) ?? []);
     setReports(rawReports.map(r => ({
       ...r,
-      entity_name: r.entity_type === 'establishment' ? estMap.get(r.entity_id) ?? 'Desconhecido' : driverNames[r.entity_id] ?? 'Desconhecido',
+      entity_name: r.entity_type === 'establishment' ? (estMap.get(r.entity_id) ?? 'Desconhecido') : (driverNames[r.entity_id] ?? 'Desconhecido'),
     })));
     setLoading(false);
   };
