@@ -137,6 +137,16 @@ const Register = () => {
         }
       }
 
+      // Send WhatsApp notification
+      const cleanPhone = phone.replace(/\D/g, '');
+      const whatsappPhone = cleanPhone.length === 11 ? `55${cleanPhone}` : cleanPhone;
+      supabase.functions.invoke('send-whatsapp', {
+        body: {
+          phone: whatsappPhone,
+          message: `Olá ${fullName}! 👋\n\nSeu cadastro no *Good Delivery* foi recebido com sucesso! ✅\n\nEstamos analisando seus dados e você será notificado assim que sua conta for aprovada.\n\nObrigado por escolher o Good Delivery! 🚀`,
+        },
+      }).catch(() => {});
+
       toast.success('Conta criada! Aguarde aprovação do administrador.');
       navigate('/pending-approval');
     } catch (err) {
@@ -371,6 +381,55 @@ const Register = () => {
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="Rua, número, bairro, cidade"
                 />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-muted-foreground" /> Localização no mapa *
+                </Label>
+                <div className="flex gap-2 mb-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={locatingGps}
+                    onClick={() => {
+                      setLocatingGps(true);
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          setLatitude(pos.coords.latitude);
+                          setLongitude(pos.coords.longitude);
+                          setLocatingGps(false);
+                          toast.success('Localização capturada!');
+                        },
+                        () => {
+                          toast.error('Não foi possível obter sua localização');
+                          setLocatingGps(false);
+                        },
+                        { enableHighAccuracy: true }
+                      );
+                    }}
+                  >
+                    <LocateFixed className="h-4 w-4 mr-1" />
+                    {locatingGps ? 'Localizando...' : 'Usar minha localização'}
+                  </Button>
+                </div>
+                <MapPicker
+                  mode="pick"
+                  height="200px"
+                  center={latitude && longitude ? [latitude, longitude] : [-14.235, -51.925]}
+                  zoom={latitude && longitude ? 16 : 4}
+                  markers={latitude && longitude ? [{ lat: latitude, lng: longitude, color: 'hsl(358, 82%, 53%)' }] : []}
+                  onLocationSelect={(lat, lng) => {
+                    setLatitude(lat);
+                    setLongitude(lng);
+                  }}
+                  searchEnabled
+                />
+                {latitude && longitude && (
+                  <p className="text-xs text-muted-foreground">
+                    📍 {latitude.toFixed(5)}, {longitude.toFixed(5)}
+                  </p>
+                )}
               </div>
             </div>
           )}
