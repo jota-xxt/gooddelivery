@@ -85,7 +85,14 @@ const MapPicker = ({
     // Small timeout to ensure proper sizing
     setTimeout(() => map.invalidateSize(), 100);
 
+    // Watch for container resize (e.g. sidebar open/close) and fix tiles
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    ro.observe(containerRef.current);
+
     return () => {
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
     };
