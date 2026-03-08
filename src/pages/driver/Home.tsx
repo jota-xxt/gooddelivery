@@ -585,6 +585,14 @@ const DriverHome = () => {
                   variant="outline"
                   size="icon"
                   className="h-12 w-12"
+                  onClick={() => setChatOpen(true)}
+                >
+                  <MessageSquare className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-12 w-12"
                   onClick={() => openMaps(
                     activeDelivery.status === 'accepted' || activeDelivery.status === 'collecting'
                       ? activeDelivery.establishment_address ?? ''
