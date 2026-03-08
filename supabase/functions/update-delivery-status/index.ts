@@ -162,7 +162,9 @@ async function handleAccept(
     supabaseAdmin,
     delivery.establishment_id as string,
     "Entregador encontrado!",
-    `Um entregador aceitou a corrida para ${delivery.delivery_address}.`
+    `Um entregador aceitou a corrida para ${delivery.delivery_address}.`,
+    "delivery_accepted",
+    { address: delivery.delivery_address as string }
   );
 
   return new Response(JSON.stringify({ success: true, status: "accepted" }), {
@@ -319,12 +321,20 @@ async function handleAdvance(
     completed: `A entrega para ${delivery.delivery_address} foi concluída! ✅`,
   };
 
+  const statusToWhatsApp: Record<string, string> = {
+    collecting: "delivery_collecting",
+    delivering: "delivery_delivering",
+    completed: "delivery_completed",
+  };
+
   if (statusMessages[config.next]) {
     await notifyEstablishment(
       supabaseAdmin,
       delivery.establishment_id as string,
       config.next === "completed" ? "Entrega concluída!" : "Atualização de entrega",
-      statusMessages[config.next]
+      statusMessages[config.next],
+      statusToWhatsApp[config.next],
+      { address: delivery.delivery_address as string }
     );
   }
 
