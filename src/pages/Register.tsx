@@ -143,7 +143,8 @@ const Register = () => {
       supabase.functions.invoke('send-whatsapp', {
         body: {
           phone: whatsappPhone,
-          message: `Olá ${fullName}! 👋\n\nSeu cadastro no *Good Delivery* foi recebido com sucesso! ✅\n\nEstamos analisando seus dados e você será notificado assim que sua conta for aprovada.\n\nObrigado por escolher o Good Delivery! 🚀`,
+          template: 'registration_received',
+          vars: { name: fullName },
         },
       }).catch(() => {});
 

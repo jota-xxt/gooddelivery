@@ -61,6 +61,21 @@ const AdminApprovals = () => {
       toast.error('Erro ao processar');
     } else {
       toast.success(approve ? 'Usuário aprovado!' : 'Usuário rejeitado');
+      
+      // Send WhatsApp notification
+      const user = pending.find(p => p.user_id === userId);
+      if (user?.phone) {
+        const cleanPhone = user.phone.replace(/\D/g, '');
+        const whatsappPhone = cleanPhone.length === 11 ? `55${cleanPhone}` : cleanPhone;
+        supabase.functions.invoke('send-whatsapp', {
+          body: {
+            phone: whatsappPhone,
+            template: approve ? 'registration_approved' : 'registration_rejected',
+            vars: { name: user.full_name, role: user.role },
+          },
+        }).catch(() => {});
+      }
+
       setPending((prev) => prev.filter((p) => p.user_id !== userId));
     }
     setProcessing(null);
