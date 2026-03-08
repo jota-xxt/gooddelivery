@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import AvatarUpload from '@/components/AvatarUpload';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Star, Phone, CreditCard, Bike, Car, Truck, Calendar, Package, Bell, LogOut } from 'lucide-react';
 import { format } from 'date-fns';
@@ -11,7 +11,7 @@ import { ptBR } from 'date-fns/locale';
 
 const DriverProfile = () => {
   const { user, signOut } = useAuth();
-  const [profile, setProfile] = useState<{ full_name: string; phone: string; created_at: string } | null>(null);
+  const [profile, setProfile] = useState<{ full_name: string; phone: string; created_at: string; avatar_url: string | null } | null>(null);
   const [driver, setDriver] = useState<{ vehicle_type: string; cpf: string; plate: string | null } | null>(null);
   const [avgRating, setAvgRating] = useState<number | null>(null);
   const [ratingCount, setRatingCount] = useState(0);
@@ -26,7 +26,7 @@ const DriverProfile = () => {
 
   const loadData = async () => {
     const [profileRes, driverRes, ratingsRes, notifsRes] = await Promise.all([
-      supabase.from('profiles').select('full_name, phone, created_at').eq('user_id', user!.id).maybeSingle(),
+      supabase.from('profiles').select('full_name, phone, created_at, avatar_url').eq('user_id', user!.id).maybeSingle(),
       supabase.from('drivers').select('vehicle_type, cpf, plate, id').eq('user_id', user!.id).maybeSingle(),
       supabase.from('ratings').select('rating').eq('to_user_id', user!.id),
       supabase.from('notifications').select('*').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(5),
@@ -80,11 +80,12 @@ const DriverProfile = () => {
     <div className="p-4 space-y-6 pb-24">
       {/* Avatar and name */}
       <div className="flex flex-col items-center pt-2">
-        <Avatar className="h-20 w-20 border-4 border-primary">
-          <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-bold">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
+        <AvatarUpload
+          userId={user!.id}
+          currentUrl={profile?.avatar_url ?? null}
+          initials={initials}
+          onUploaded={(url) => setProfile(prev => prev ? { ...prev, avatar_url: url } : prev)}
+        />
         <h1 className="text-xl font-bold mt-3">{profile?.full_name}</h1>
         {avgRating !== null && (
           <div className="flex items-center gap-1 mt-1">
