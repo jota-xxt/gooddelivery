@@ -219,7 +219,7 @@ const AdminDeliveries = () => {
                   <CardContent className="flex items-center gap-3 py-3 cursor-pointer">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-sm">{d.customer_name || 'Sem nome'}</p>
+                        <p className="font-semibold text-sm">{d.driver_name || d.establishment_name}</p>
                         <Badge className={`text-xs ${statusColor[d.status]}`}>{statusLabel[d.status]}</Badge>
                         {d.urgency === 'urgent' && <Badge variant="destructive" className="text-xs">Urgente</Badge>}
                       </div>
