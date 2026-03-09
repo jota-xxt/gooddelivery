@@ -46,6 +46,14 @@ Deno.serve(async (req) => {
     
     log.push("Tables cleaned.");
 
+    // 2.5 Regenerate VAPID keys
+    const { publicKey: vapidPub, privateKeyJwk: vapidPriv } = await generateVAPIDKeys();
+    await supabaseAdmin.from("app_settings").upsert([
+      { key: "vapid_public_key", value: vapidPub },
+      { key: "vapid_private_key_jwk", value: vapidPriv },
+    ], { onConflict: "key" });
+    log.push("VAPID keys regenerated.");
+
     // 2. Delete all auth users
     const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
     if (authUsers?.users) {
