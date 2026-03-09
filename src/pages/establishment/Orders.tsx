@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { Plus, MapPin, Clock, Loader2, User, AlertTriangle, MessageSquare, Package, DollarSign, Truck } from 'lucide-react';
 import DeliveryTracker from '@/components/DeliveryTracker';
 import QuickStats from '@/components/QuickStats';
+import EstablishmentQueueInfo from '@/components/EstablishmentQueueInfo';
 import ChatDialog from '@/components/ChatDialog';
 
 interface DeliveryWithDriver {
@@ -202,6 +203,8 @@ const EstablishmentOrders = () => {
       </div>
 
       <div className="p-4 space-y-4">
+        {/* Queue Info */}
+        <EstablishmentQueueInfo />
         {/* Filter Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full">
