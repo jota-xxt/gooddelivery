@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Users, Settings, DollarSign, Truck, Menu, MapPin, Package } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, DollarSign, Menu, MapPin, Package } from 'lucide-react';
+import logo from '@/assets/logo.png';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -23,8 +24,8 @@ const NavContent = ({ onNavigate }: { onNavigate?: () => void }) => {
   return (
     <>
       <div className="flex items-center gap-3 p-6 border-b">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-          <Truck className="h-5 w-5 text-primary-foreground" />
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary overflow-hidden">
+          <img src={logo} alt="Good Delivery" className="h-8 w-8 object-contain" />
         </div>
         <div>
           <h2 className="font-bold text-sm">Good Delivery</h2>
@@ -79,8 +80,8 @@ const AdminSidebar = () => {
           </SheetContent>
         </Sheet>
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Truck className="h-4 w-4 text-primary-foreground" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary overflow-hidden">
+            <img src={logo} alt="Good Delivery" className="h-6 w-6 object-contain" />
           </div>
           <span className="font-bold text-sm">Good Delivery</span>
         </div>
