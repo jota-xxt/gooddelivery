@@ -172,6 +172,17 @@ const DriverProfile = () => {
         </CardContent>
       </Card>
 
+      {/* Push Notifications Toggle */}
+      <Card>
+        <CardContent className="py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bell className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Notificações Push</span>
+          </div>
+          <PushNotificationToggle />
+        </CardContent>
+      </Card>
+
       {/* Notifications */}
       {notifications.length > 0 && (
         <Card>
