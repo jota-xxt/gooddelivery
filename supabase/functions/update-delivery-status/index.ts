@@ -442,6 +442,10 @@ async function handleCancel(
 
   if (notifications.length > 0) {
     await supabaseAdmin.from("notifications").insert(notifications);
+    // Send push to all notified users
+    for (const n of notifications) {
+      sendPush(n.user_id, n.title, n.message);
+    }
   }
 
   return new Response(JSON.stringify({ success: true, status: "cancelled" }), {
