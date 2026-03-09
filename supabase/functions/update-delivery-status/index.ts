@@ -241,6 +241,7 @@ async function checkAndApplyPenalty(
         title: "Você foi temporariamente bloqueado",
         message: `Você recusou/perdeu ${count} ofertas nas últimas 24h. Bloqueado por ${durationMinutes} minutos.`,
       });
+      sendPush(driverData.user_id, "Você foi temporariamente bloqueado", `Bloqueado por ${durationMinutes} minutos.`);
     }
 
     return true;
