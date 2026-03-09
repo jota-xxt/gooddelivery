@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Users, Settings, DollarSign, Truck, Menu, MapPin, Package } from 'lucide-react';
+import { LayoutDashboard, Users, Settings, DollarSign, Menu, MapPin, Package } from 'lucide-react';
+import logo from '@/assets/logo.png';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';

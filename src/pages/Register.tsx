@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
-import { Truck, Bike, ArrowLeft, User, Mail, Lock, Phone, FileText, Building2, MapPin, ChevronRight, LocateFixed } from 'lucide-react';
+import { Bike, ArrowLeft, User, Mail, Lock, Phone, FileText, Building2, MapPin, ChevronRight, LocateFixed } from 'lucide-react';
+import logo from '@/assets/logo.png';
 import MapPicker from '@/components/MapPicker';
 
 type UserType = 'driver' | 'establishment';
