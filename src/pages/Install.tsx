@@ -53,9 +53,9 @@ const Install = () => {
         </div>
 
         {isInstalled ? (
-          <Card className="border-green-500/30 bg-green-500/10">
+          <Card className="border-primary/30 bg-primary/10">
             <CardContent className="pt-6 text-center">
-              <p className="text-green-600 font-medium">
+              <p className="text-primary font-medium">
                 ✅ App já está instalado! Abra pelo ícone na sua tela inicial.
               </p>
             </CardContent>
