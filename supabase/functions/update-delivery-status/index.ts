@@ -73,8 +73,11 @@ async function notifyEstablishment(
     .select("user_id, phone, responsible_name")
     .eq("id", establishmentId)
     .single();
-  if (est) {
+   if (est) {
     await supabaseAdmin.from("notifications").insert({ user_id: est.user_id, title, message });
+    
+    // Send push notification
+    sendPush(est.user_id, title, message);
     
     // Send WhatsApp if template provided
     if (whatsappTemplate && est.phone) {
