@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import MapPicker from '@/components/MapPicker';
 import QuickStats from '@/components/QuickStats';
+import { PushNotificationToggle } from '@/components/PushNotificationToggle';
 
 const EstablishmentProfile = () => {
   const { user, signOut } = useAuth();
