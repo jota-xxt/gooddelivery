@@ -54,11 +54,23 @@ export function usePushNotifications() {
   };
 
   const subscribe = useCallback(async () => {
-    if (!user || !("Notification" in window) || !("serviceWorker" in navigator)) return false;
+    if (!user) {
+      console.error("Push: no user");
+      return false;
+    }
+    if (!("Notification" in window)) {
+      console.error("Push: Notification API not available");
+      return false;
+    }
+    if (!("serviceWorker" in navigator)) {
+      console.error("Push: ServiceWorker not available");
+      return false;
+    }
 
     setLoading(true);
     try {
       const perm = await Notification.requestPermission();
+      console.log("Push: permission result:", perm);
       setPermission(perm);
       if (perm !== "granted") {
         setLoading(false);
@@ -66,6 +78,7 @@ export function usePushNotifications() {
       }
 
       const vapidPublicKey = await getVapidPublicKey();
+      console.log("Push: VAPID key:", vapidPublicKey ? "found" : "NOT FOUND");
       if (!vapidPublicKey) {
         console.error("VAPID public key not found. Admin needs to initialize VAPID keys.");
         setLoading(false);
@@ -73,28 +86,41 @@ export function usePushNotifications() {
       }
 
       const registration = await navigator.serviceWorker.ready;
+      console.log("Push: SW ready, scope:", registration.scope);
       
       // Unsubscribe existing if any
       const existingSub = await registration.pushManager.getSubscription();
       if (existingSub) {
+        console.log("Push: unsubscribing existing");
         await existingSub.unsubscribe();
       }
 
+      const appServerKey = urlBase64ToUint8Array(vapidPublicKey);
+      console.log("Push: subscribing with key length:", appServerKey.length);
+      
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey).buffer as ArrayBuffer,
+        applicationServerKey: appServerKey,
       });
 
+      console.log("Push: subscribed, endpoint:", subscription.endpoint.substring(0, 50));
       const subJson = subscription.toJSON();
 
       // Save to database
-      await supabase.from("push_subscriptions").upsert({
+      const { error: dbError } = await supabase.from("push_subscriptions").upsert({
         user_id: user.id,
         endpoint: subJson.endpoint!,
         p256dh: subJson.keys!.p256dh!,
         auth: subJson.keys!.auth!,
       }, { onConflict: "user_id,endpoint" });
 
+      if (dbError) {
+        console.error("Push: DB save error:", dbError);
+        setLoading(false);
+        return false;
+      }
+
+      console.log("Push: saved to DB successfully");
       setIsSubscribed(true);
       setLoading(false);
       return true;
