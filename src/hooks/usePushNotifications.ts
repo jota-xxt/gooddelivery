@@ -100,7 +100,7 @@ export function usePushNotifications() {
       
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: appServerKey,
+        applicationServerKey: appServerKey.buffer as ArrayBuffer,
       });
 
       console.log("Push: subscribed, endpoint:", subscription.endpoint.substring(0, 50));
