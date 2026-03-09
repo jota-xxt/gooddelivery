@@ -82,8 +82,10 @@ const MapPicker = ({
       });
     }
 
-    // Small timeout to ensure proper sizing
+    // Ensure proper sizing after mount and dialog animations
     setTimeout(() => map.invalidateSize(), 100);
+    setTimeout(() => map.invalidateSize(), 300);
+    setTimeout(() => map.invalidateSize(), 600);
 
     // Watch for container resize (e.g. sidebar open/close) and fix tiles
     const ro = new ResizeObserver(() => {
