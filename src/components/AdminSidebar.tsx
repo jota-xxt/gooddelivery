@@ -24,9 +24,7 @@ const NavContent = ({ onNavigate }: { onNavigate?: () => void }) => {
   return (
     <>
       <div className="flex items-center gap-3 p-6 border-b">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary overflow-hidden">
-          <img src={logo} alt="Good Delivery" className="h-8 w-8 object-contain" />
-        </div>
+        <img src={logo} alt="Good Delivery" className="h-10 w-10 object-contain rounded-xl" />
         <div>
           <h2 className="font-bold text-sm">Good Delivery</h2>
           <p className="text-xs text-muted-foreground">Admin</p>
