@@ -1,0 +1,1 @@
+UPDATE public.profiles SET status = 'pending' WHERE user_id = '0655c1b9-d10c-4982-890b-c8872ec796bb';
