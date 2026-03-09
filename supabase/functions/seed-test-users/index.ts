@@ -5,6 +5,19 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+async function generateVAPIDKeys() {
+  const keyPair = await crypto.subtle.generateKey(
+    { name: "ECDSA", namedCurve: "P-256" },
+    true,
+    ["sign", "verify"]
+  );
+  const publicKeyRaw = await crypto.subtle.exportKey("raw", keyPair.publicKey);
+  const privateKeyJwk = await crypto.subtle.exportKey("jwk", keyPair.privateKey);
+  const publicKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(publicKeyRaw)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return { publicKey: publicKeyBase64, privateKeyJwk: JSON.stringify(privateKeyJwk) };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -32,6 +45,14 @@ Deno.serve(async (req) => {
     await supabaseAdmin.from("profiles").delete().neq("id", "00000000-0000-0000-0000-000000000000");
     
     log.push("Tables cleaned.");
+
+    // 2.5 Regenerate VAPID keys
+    const { publicKey: vapidPub, privateKeyJwk: vapidPriv } = await generateVAPIDKeys();
+    await supabaseAdmin.from("app_settings").upsert([
+      { key: "vapid_public_key", value: vapidPub },
+      { key: "vapid_private_key_jwk", value: vapidPriv },
+    ], { onConflict: "key" });
+    log.push("VAPID keys regenerated.");
 
     // 2. Delete all auth users
     const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
