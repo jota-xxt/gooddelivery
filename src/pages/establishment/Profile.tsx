@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import MapPicker from '@/components/MapPicker';
 import QuickStats from '@/components/QuickStats';
+import { PushNotificationToggle } from '@/components/PushNotificationToggle';
 
 const EstablishmentProfile = () => {
   const { user, signOut } = useAuth();
@@ -201,6 +202,17 @@ const EstablishmentProfile = () => {
                 height="180px"
               />
             )}
+          </CardContent>
+        </Card>
+
+        {/* Push Notifications Toggle */}
+        <Card>
+          <CardContent className="py-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bell className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">Notificações Push</span>
+            </div>
+            <PushNotificationToggle />
           </CardContent>
         </Card>
 

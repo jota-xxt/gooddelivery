@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import AvatarUpload from '@/components/AvatarUpload';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Star, Phone, CreditCard, Bike, Car, Truck, Calendar, Package, Bell, LogOut } from 'lucide-react';
+import { PushNotificationToggle } from '@/components/PushNotificationToggle';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -168,6 +169,17 @@ const DriverProfile = () => {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Push Notifications Toggle */}
+      <Card>
+        <CardContent className="py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bell className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Notificações Push</span>
+          </div>
+          <PushNotificationToggle />
         </CardContent>
       </Card>
 

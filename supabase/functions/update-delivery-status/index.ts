@@ -46,6 +46,20 @@ async function sendWhatsApp(template: string, phone: string, vars: Record<string
   } catch {}
 }
 
+async function sendPush(userId: string, title: string, message: string) {
+  try {
+    const url = Deno.env.get("SUPABASE_URL")! + "/functions/v1/send-push";
+    fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({ user_id: userId, title, message }),
+    }).catch(() => {});
+  } catch {}
+}
+
 async function notifyEstablishment(
   supabaseAdmin: ReturnType<typeof createClient>,
   establishmentId: string,
@@ -59,8 +73,11 @@ async function notifyEstablishment(
     .select("user_id, phone, responsible_name")
     .eq("id", establishmentId)
     .single();
-  if (est) {
+   if (est) {
     await supabaseAdmin.from("notifications").insert({ user_id: est.user_id, title, message });
+    
+    // Send push notification
+    sendPush(est.user_id, title, message);
     
     // Send WhatsApp if template provided
     if (whatsappTemplate && est.phone) {
@@ -224,6 +241,7 @@ async function checkAndApplyPenalty(
         title: "Você foi temporariamente bloqueado",
         message: `Você recusou/perdeu ${count} ofertas nas últimas 24h. Bloqueado por ${durationMinutes} minutos.`,
       });
+      sendPush(driverData.user_id, "Você foi temporariamente bloqueado", `Bloqueado por ${durationMinutes} minutos.`);
     }
 
     return true;
@@ -424,6 +442,10 @@ async function handleCancel(
 
   if (notifications.length > 0) {
     await supabaseAdmin.from("notifications").insert(notifications);
+    // Send push to all notified users
+    for (const n of notifications) {
+      sendPush(n.user_id, n.title, n.message);
+    }
   }
 
   return new Response(JSON.stringify({ success: true, status: "cancelled" }), {
