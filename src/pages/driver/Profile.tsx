@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import AvatarUpload from '@/components/AvatarUpload';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Star, Phone, CreditCard, Bike, Car, Truck, Calendar, Package, Bell, LogOut } from 'lucide-react';
+import { PushNotificationToggle } from '@/components/PushNotificationToggle';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
