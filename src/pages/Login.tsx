@@ -35,8 +35,8 @@ const Login = () => {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md border-0 shadow-xl">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary">
-            <Truck className="h-8 w-8 text-primary-foreground" />
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary overflow-hidden">
+            <img src={logo} alt="Good Delivery" className="h-12 w-12 object-contain" />
           </div>
           <CardTitle className="text-2xl font-bold">Good Delivery</CardTitle>
           <CardDescription>Entre na sua conta para continuar</CardDescription>
