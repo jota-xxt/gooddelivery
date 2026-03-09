@@ -203,6 +203,8 @@ const EstablishmentOrders = () => {
       </div>
 
       <div className="p-4 space-y-4">
+        {/* Queue Info */}
+        <EstablishmentQueueInfo />
         {/* Filter Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="w-full">
