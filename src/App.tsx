@@ -108,7 +108,7 @@ const App = () => (
               <Route path="profile" element={<EstablishmentProfile />} />
             </Route>
 
-            <Route path="/" element={<ProtectedRoutes />} />
+            <Route path="/" element={<LandingPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
