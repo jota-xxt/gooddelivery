@@ -11,6 +11,7 @@ import Register from "./pages/Register";
 import PendingApproval from "./pages/PendingApproval";
 import NotFound from "./pages/NotFound";
 import Install from "./pages/Install";
+import LandingPage from "./pages/LandingPage";
 
 import AdminLayout from "./layouts/AdminLayout";
 import AdminDashboard from "./pages/admin/Dashboard";
