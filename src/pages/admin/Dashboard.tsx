@@ -46,8 +46,9 @@ const AdminDashboard = () => {
     const sevenDaysAgo = subDays(new Date(), 6);
     const fourteenDaysAgo = subDays(new Date(), 13);
 
+    const ninetyDaysAgo = subDays(new Date(), 90).toISOString();
     const [deliveries, drivers, establishments, recent, active, approvals] = await Promise.all([
-      supabase.from('deliveries').select('id, delivery_fee, status, created_at, accepted_at, delivered_at'),
+      supabase.from('deliveries').select('id, delivery_fee, status, created_at, accepted_at, delivered_at').gte('created_at', ninetyDaysAgo),
       supabase.from('drivers').select('id', { count: 'exact' }).eq('is_online', true),
       supabase.from('establishments').select('id', { count: 'exact' }),
       supabase.from('deliveries')
