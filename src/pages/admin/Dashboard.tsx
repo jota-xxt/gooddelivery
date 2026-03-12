@@ -136,12 +136,20 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchAll();
+    const debounceRef = { timer: null as ReturnType<typeof setTimeout> | null };
+    const debouncedFetch = () => {
+      if (debounceRef.timer) clearTimeout(debounceRef.timer);
+      debounceRef.timer = setTimeout(() => fetchAll(), 2000);
+    };
     const channel = supabase
       .channel('admin-dashboard-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => fetchAll())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchAll())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, debouncedFetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, debouncedFetch)
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (debounceRef.timer) clearTimeout(debounceRef.timer);
+      supabase.removeChannel(channel);
+    };
   }, [fetchAll]);
 
   const pctChange = (current: number, prev: number) => {

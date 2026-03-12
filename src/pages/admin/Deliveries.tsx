@@ -93,11 +93,19 @@ const AdminDeliveries = () => {
 
   useEffect(() => {
     fetchDeliveries();
+    const debounceRef = { timer: null as ReturnType<typeof setTimeout> | null };
+    const debouncedFetch = () => {
+      if (debounceRef.timer) clearTimeout(debounceRef.timer);
+      debounceRef.timer = setTimeout(() => fetchDeliveries(), 2000);
+    };
     const channel = supabase
       .channel('admin-deliveries-list')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => fetchDeliveries())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, debouncedFetch)
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (debounceRef.timer) clearTimeout(debounceRef.timer);
+      supabase.removeChannel(channel);
+    };
   }, [fetchDeliveries]);
 
   const filtered = useMemo(() => {

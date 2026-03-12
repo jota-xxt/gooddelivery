@@ -44,7 +44,8 @@ const EstablishmentHistory = () => {
         .eq('establishment_id', est.id)
         .in('status', ['completed', 'cancelled'])
         .gte('created_at', since)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       if (!data) return;
 
