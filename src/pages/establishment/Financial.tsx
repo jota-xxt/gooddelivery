@@ -96,8 +96,7 @@ const EstablishmentFinancial = () => {
     const date = new Date(d.delivered_at);
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekStart = new Date(todayStart);
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 });
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     if (period === 'week') return date >= weekStart;
     if (period === 'month') return date >= monthStart;
