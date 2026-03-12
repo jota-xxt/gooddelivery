@@ -70,6 +70,7 @@ const DriverHome = () => {
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
   const [totalOnlineDrivers, setTotalOnlineDrivers] = useState(0);
   const [searchingCount, setSearchingCount] = useState(0);
+  const [queueDrivers, setQueueDrivers] = useState<QueueDriver[]>([]);
   const [currentOffer, setCurrentOffer] = useState<DeliveryOffer | null>(null);
   const [offerTimer, setOfferTimer] = useState(60);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
