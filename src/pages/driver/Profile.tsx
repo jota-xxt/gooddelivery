@@ -201,7 +201,37 @@ const DriverProfile = () => {
         </CardContent>
       </Card>
 
-      {/* Push Notifications Toggle */}
+      {/* Chave PIX */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <QrCode className="h-4 w-4" /> Chave PIX
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1.5">
+            <Input
+              placeholder="CPF, e-mail, telefone ou chave aleatória"
+              value={pixKey}
+              onChange={e => setPixKey(e.target.value)}
+              className="text-sm"
+            />
+            {pixKey && (
+              <p className="text-[10px] text-muted-foreground">Tipo detectado: {detectPixType(pixKey)}</p>
+            )}
+          </div>
+          <Button
+            size="sm"
+            className="w-full gap-1.5"
+            onClick={savePixKey}
+            disabled={savingPix || pixKey === (driver?.pix_key ?? '')}
+          >
+            <Save className="h-3.5 w-3.5" />
+            {savingPix ? 'Salvando...' : 'Salvar Chave PIX'}
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardContent className="py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
