@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Package, Clock, Store, MapPin } from 'lucide-react';
+import { Package, Clock, Store, MapPin, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -19,33 +20,48 @@ interface HistoryDelivery {
   establishment_name: string;
 }
 
+const PAGE_SIZE = 30;
+
+const getDateFilter = (period: string): string | null => {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (period === 'today') return todayStart.toISOString();
+  if (period === 'week') {
+    const weekStart = new Date(todayStart);
+    const day = weekStart.getDay();
+    weekStart.setDate(weekStart.getDate() - (day === 0 ? 6 : day - 1)); // Monday
+    return weekStart.toISOString();
+  }
+  if (period === 'month') return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  return null; // 'all'
+};
+
 const DriverHistory = () => {
   const { user } = useAuth();
   const [deliveries, setDeliveries] = useState<HistoryDelivery[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [period, setPeriod] = useState('week');
   const [feePercent, setFeePercent] = useState(10);
+  const [hasMore, setHasMore] = useState(false);
+  const [driverIdRef, setDriverIdRef] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user) return;
-    loadData();
-  }, [user]);
-
-  const loadData = async () => {
-    const { data: driver } = await supabase.from('drivers').select('id').eq('user_id', user!.id).maybeSingle();
-    if (!driver) { setLoading(false); return; }
-
-    const { data: settings } = await supabase.from('app_settings').select('value').eq('key', 'platform_fee_percentage').maybeSingle();
-    setFeePercent(Number(settings?.value ?? 10));
-
-    const { data } = await supabase
+  const loadDeliveries = useCallback(async (driverId: string, periodVal: string, offset = 0) => {
+    let query = supabase
       .from('deliveries')
       .select('id, delivery_address, delivery_fee, delivered_at, cancelled_at, status, establishment_id')
-      .eq('driver_id', driver.id)
+      .eq('driver_id', driverId)
       .in('status', ['completed', 'cancelled'])
-      .order('delivered_at', { ascending: false });
+      .order('delivered_at', { ascending: false, nullsFirst: false })
+      .range(offset, offset + PAGE_SIZE - 1);
 
-    if (!data) { setLoading(false); return; }
+    const dateFilter = getDateFilter(periodVal);
+    if (dateFilter) {
+      query = query.gte('delivered_at', dateFilter);
+    }
+
+    const { data } = await query;
+    if (!data) return [];
 
     const estIds = [...new Set(data.map(d => d.establishment_id))];
     let estMap = new Map<string, string>();
@@ -54,25 +70,40 @@ const DriverHistory = () => {
       estMap = new Map(ests?.map(e => [e.id, e.business_name]) ?? []);
     }
 
-    setDeliveries(data.map(d => ({
+    const mapped = data.map(d => ({
       ...d,
       establishment_name: estMap.get(d.establishment_id) ?? 'Desconhecido',
-    })));
-    setLoading(false);
-  };
+    }));
 
-  const filtered = deliveries.filter(d => {
-    const date = new Date(d.delivered_at ?? d.cancelled_at ?? '');
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const weekStart = new Date(todayStart);
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    if (period === 'today') return date >= todayStart;
-    if (period === 'week') return date >= weekStart;
-    if (period === 'month') return date >= monthStart;
-    return true;
-  });
+    setHasMore(data.length === PAGE_SIZE);
+    return mapped;
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const init = async () => {
+      setLoading(true);
+      const [{ data: driver }, { data: settings }] = await Promise.all([
+        supabase.from('drivers').select('id').eq('user_id', user.id).maybeSingle(),
+        supabase.from('app_settings').select('value').eq('key', 'platform_fee_percentage').maybeSingle(),
+      ]);
+      setFeePercent(Number(settings?.value ?? 10));
+      if (!driver) { setLoading(false); return; }
+      setDriverIdRef(driver.id);
+      const results = await loadDeliveries(driver.id, period);
+      setDeliveries(results);
+      setLoading(false);
+    };
+    init();
+  }, [user, period, loadDeliveries]);
+
+  const loadMore = async () => {
+    if (!driverIdRef || loadingMore) return;
+    setLoadingMore(true);
+    const more = await loadDeliveries(driverIdRef, period, deliveries.length);
+    setDeliveries(prev => [...prev, ...more]);
+    setLoadingMore(false);
+  };
 
   if (loading) {
     return (
@@ -100,7 +131,7 @@ const DriverHistory = () => {
         </Select>
       </div>
 
-      {filtered.length === 0 ? (
+      {deliveries.length === 0 ? (
         <div className="flex flex-col items-center py-16 text-center">
           <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
             <Package className="h-8 w-8 text-muted-foreground" />
@@ -110,7 +141,7 @@ const DriverHistory = () => {
         </div>
       ) : (
         <div className="space-y-3">
-          {filtered.map(d => {
+          {deliveries.map(d => {
             const net = Number(d.delivery_fee) * (1 - feePercent / 100);
             const dateStr = d.delivered_at ?? d.cancelled_at;
             const isCancelled = d.status === 'cancelled';
@@ -146,6 +177,13 @@ const DriverHistory = () => {
               </Card>
             );
           })}
+
+          {hasMore && (
+            <Button variant="outline" className="w-full" onClick={loadMore} disabled={loadingMore}>
+              {loadingMore ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Carregar mais
+            </Button>
+          )}
         </div>
       )}
     </div>

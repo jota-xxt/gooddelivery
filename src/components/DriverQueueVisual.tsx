@@ -1,65 +1,14 @@
-import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { Users, User, Clock, TrendingUp } from 'lucide-react';
 
 interface DriverQueueVisualProps {
-  driverId: string;
-  isOnline: boolean;
+  position: number | null;
+  totalDrivers: number;
+  searchingCount: number;
 }
 
-const DriverQueueVisual = ({ driverId, isOnline }: DriverQueueVisualProps) => {
-  const [position, setPosition] = useState<number | null>(null);
-  const [totalDrivers, setTotalDrivers] = useState(0);
-  const [searchingCount, setSearchingCount] = useState(0);
-
-  const fetchQueueData = useCallback(async () => {
-    if (!driverId || !isOnline) {
-      setPosition(null);
-      setTotalDrivers(0);
-      return;
-    }
-
-    const [driversRes, searchingRes] = await Promise.all([
-      supabase
-        .from('drivers')
-        .select('id')
-        .eq('is_online', true)
-        .not('queue_joined_at', 'is', null)
-        .order('queue_joined_at', { ascending: true }),
-      supabase
-        .from('deliveries')
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'searching'),
-    ]);
-
-    if (driversRes.data) {
-      const pos = driversRes.data.findIndex(d => d.id === driverId);
-      setPosition(pos >= 0 ? pos + 1 : null);
-      setTotalDrivers(driversRes.data.length);
-    }
-    setSearchingCount(searchingRes.count ?? 0);
-  }, [driverId, isOnline]);
-
-  useEffect(() => {
-    fetchQueueData();
-
-    const channels = [
-      supabase
-        .channel('queue-visual-drivers')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, () => fetchQueueData())
-        .subscribe(),
-      supabase
-        .channel('queue-visual-deliveries')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => fetchQueueData())
-        .subscribe(),
-    ];
-
-    return () => { channels.forEach(c => supabase.removeChannel(c)); };
-  }, [fetchQueueData]);
-
+const DriverQueueVisual = ({ position, totalDrivers, searchingCount }: DriverQueueVisualProps) => {
   if (position === null) return null;
 
-  // Generate visual queue dots - show max 9 dots to keep it compact
   const maxDots = Math.min(totalDrivers, 9);
   const showEllipsis = totalDrivers > 9;
   const myDotIndex = position - 1;
@@ -88,7 +37,7 @@ const DriverQueueVisual = ({ driverId, isOnline }: DriverQueueVisualProps) => {
           <div className="h-20 w-20 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/25">
             <span className="text-3xl font-black text-primary-foreground">{position}º</span>
           </div>
-          <div className="absolute -inset-1 rounded-full border-2 border-primary/30 animate-[spin_8s_linear_infinite]" 
+          <div className="absolute -inset-1 rounded-full border-2 border-primary/30 animate-[spin_8s_linear_infinite]"
             style={{ borderStyle: 'dashed' }} />
         </div>
         <p className="text-sm font-medium text-foreground">Sua posição na fila</p>
@@ -103,7 +52,6 @@ const DriverQueueVisual = ({ driverId, isOnline }: DriverQueueVisualProps) => {
           {Array.from({ length: maxDots }).map((_, i) => {
             const isMe = i === Math.min(myDotIndex, maxDots - 1);
             const isAhead = i < Math.min(myDotIndex, maxDots - 1);
-            const isBehind = i > Math.min(myDotIndex, maxDots - 1);
 
             return (
               <div key={i} className="flex flex-col items-center gap-1">
