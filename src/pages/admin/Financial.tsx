@@ -55,6 +55,9 @@ const AdminFinancial = () => {
   const [feePercent, setFeePercent] = useState(10);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [reportDateStart, setReportDateStart] = useState('');
+  const [reportDateEnd, setReportDateEnd] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [summary, setSummary] = useState<DeliverySummary>({
     total: 0, completed: 0, cancelled: 0, searching: 0,
     revenue: 0, todayRevenue: 0, weekRevenue: 0, monthRevenue: 0, dailyData: [],
