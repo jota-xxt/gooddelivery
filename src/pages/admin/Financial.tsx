@@ -305,6 +305,7 @@ const AdminFinancial = () => {
     toast({ title: `${pendingIds.length} relatório(s) marcado(s) como pago` });
   };
 
+  const exportCSV = (data: WeeklyReport[], filename: string) => {
     const header = 'Nome,Tipo,Semana,Entregas,Valor Total,Taxa Plataforma,Repasse Líquido,Status\n';
     const rows = data.map(r =>
       `"${r.entity_name}","${r.entity_type}","${r.week_start} a ${r.week_end}",${r.total_deliveries},${r.total_value.toFixed(2)},${r.platform_fee.toFixed(2)},${r.net_payout.toFixed(2)},"${r.status}"`
