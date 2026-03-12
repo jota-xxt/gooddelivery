@@ -3,17 +3,22 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import AvatarUpload from '@/components/AvatarUpload';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Star, Phone, CreditCard, Bike, Car, Truck, Calendar, Package, Bell, LogOut } from 'lucide-react';
+import { Star, Phone, CreditCard, Bike, Car, Truck, Calendar, Package, Bell, LogOut, QrCode, Save } from 'lucide-react';
 import { PushNotificationToggle } from '@/components/PushNotificationToggle';
+import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const DriverProfile = () => {
   const { user, signOut } = useAuth();
+  const { toast } = useToast();
   const [profile, setProfile] = useState<{ full_name: string; phone: string; created_at: string; avatar_url: string | null } | null>(null);
-  const [driver, setDriver] = useState<{ vehicle_type: string; cpf: string; plate: string | null } | null>(null);
+  const [driver, setDriver] = useState<{ id: string; vehicle_type: string; cpf: string; plate: string | null; pix_key: string | null } | null>(null);
+  const [pixKey, setPixKey] = useState('');
+  const [savingPix, setSavingPix] = useState(false);
   const [avgRating, setAvgRating] = useState<number | null>(null);
   const [ratingCount, setRatingCount] = useState(0);
   const [totalDeliveries, setTotalDeliveries] = useState(0);
@@ -28,13 +33,16 @@ const DriverProfile = () => {
   const loadData = async () => {
     const [profileRes, driverRes, ratingsRes, notifsRes] = await Promise.all([
       supabase.from('profiles').select('full_name, phone, created_at, avatar_url').eq('user_id', user!.id).maybeSingle(),
-      supabase.from('drivers').select('vehicle_type, cpf, plate, id').eq('user_id', user!.id).maybeSingle(),
+      supabase.from('drivers').select('id, vehicle_type, cpf, plate, pix_key').eq('user_id', user!.id).maybeSingle(),
       supabase.from('ratings').select('rating').eq('to_user_id', user!.id),
       supabase.from('notifications').select('*').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(5),
     ]);
 
     setProfile(profileRes.data);
-    setDriver(driverRes.data);
+    if (driverRes.data) {
+      setDriver(driverRes.data as any);
+      setPixKey(driverRes.data.pix_key ?? '');
+    }
     setNotifications(notifsRes.data ?? []);
 
     if (ratingsRes.data && ratingsRes.data.length > 0) {
@@ -49,6 +57,27 @@ const DriverProfile = () => {
     }
 
     setLoading(false);
+  };
+
+  const savePixKey = async () => {
+    if (!driver) return;
+    setSavingPix(true);
+    const { error } = await supabase.from('drivers').update({ pix_key: pixKey.trim() || null } as any).eq('id', driver.id);
+    setSavingPix(false);
+    if (error) {
+      toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Chave PIX salva!' });
+      setDriver(prev => prev ? { ...prev, pix_key: pixKey.trim() || null } : prev);
+    }
+  };
+
+  const detectPixType = (key: string): string => {
+    if (!key) return '';
+    if (/^\d{11}$/.test(key.replace(/[.\-]/g, ''))) return 'CPF/Telefone';
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) return 'E-mail';
+    if (/^[a-f0-9\-]{32,36}$/i.test(key)) return 'Aleatória';
+    return 'Chave PIX';
   };
 
   const markAsRead = async (id: string) => {
@@ -172,7 +201,37 @@ const DriverProfile = () => {
         </CardContent>
       </Card>
 
-      {/* Push Notifications Toggle */}
+      {/* Chave PIX */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <QrCode className="h-4 w-4" /> Chave PIX
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1.5">
+            <Input
+              placeholder="CPF, e-mail, telefone ou chave aleatória"
+              value={pixKey}
+              onChange={e => setPixKey(e.target.value)}
+              className="text-sm"
+            />
+            {pixKey && (
+              <p className="text-[10px] text-muted-foreground">Tipo detectado: {detectPixType(pixKey)}</p>
+            )}
+          </div>
+          <Button
+            size="sm"
+            className="w-full gap-1.5"
+            onClick={savePixKey}
+            disabled={savingPix || pixKey === (driver?.pix_key ?? '')}
+          >
+            <Save className="h-3.5 w-3.5" />
+            {savingPix ? 'Salvando...' : 'Salvar Chave PIX'}
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardContent className="py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -31,6 +31,21 @@ interface WeeklyReport {
   net_payout: number;
   status: string;
   entity_name?: string;
+  pix_key?: string | null;
+}
+
+interface GroupedEntity {
+  entity_id: string;
+  entity_name: string;
+  entity_type: string;
+  total_deliveries: number;
+  total_value: number;
+  platform_fee: number;
+  net_payout: number;
+  pix_key?: string | null;
+  reports: WeeklyReport[];
+  allPaid: boolean;
+  pendingIds: string[];
 }
 
 interface DeliverySummary {
@@ -55,6 +70,7 @@ const AdminFinancial = () => {
   const [feePercent, setFeePercent] = useState(10);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
   const [reportDateStart, setReportDateStart] = useState('');
   const [reportDateEnd, setReportDateEnd] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -148,22 +164,28 @@ const AdminFinancial = () => {
 
     const [{ data: ests }, { data: drivers }] = await Promise.all([
       estIds.length > 0 ? supabase.from('establishments').select('id, business_name').in('id', estIds) : Promise.resolve({ data: [] as any[] }),
-      driverIds.length > 0 ? supabase.from('drivers').select('id, user_id').in('id', driverIds) : Promise.resolve({ data: [] as any[] }),
+      driverIds.length > 0 ? supabase.from('drivers').select('id, user_id, pix_key').in('id', driverIds) : Promise.resolve({ data: [] as any[] }),
     ]);
 
     let driverNames: Record<string, string> = {};
+    const driverPixKeys: Record<string, string | null> = {};
     if (drivers && drivers.length > 0) {
       const userIds = drivers.map((d: any) => d.user_id);
       const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
       const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) ?? []);
-      for (const d of drivers) { driverNames[d.id] = profileMap.get(d.user_id) ?? 'Entregador'; }
+      for (const d of drivers) {
+        driverNames[d.id] = profileMap.get(d.user_id) ?? 'Entregador';
+        driverPixKeys[d.id] = (d as any).pix_key ?? null;
+      }
     }
 
     const estMap = new Map<string, string>(ests?.map((e: any) => [e.id, e.business_name] as [string, string]) ?? []);
-    setReports(rawReports.map(r => ({
+    const enrichedReports = rawReports.map(r => ({
       ...r,
       entity_name: (r as any).entity_name || (r.entity_type === 'establishment' ? (estMap.get(r.entity_id) ?? 'Desconhecido') : (driverNames[r.entity_id] ?? 'Desconhecido')),
-    })));
+      pix_key: r.entity_type === 'driver' ? driverPixKeys[r.entity_id] : null,
+    }));
+    setReports(enrichedReports);
   };
 
   const generateReport = async () => {
@@ -200,8 +222,39 @@ const AdminFinancial = () => {
     return result;
   }, [reports, selectedWeek, entitySearch]);
 
-  const estReports = filtered.filter(r => r.entity_type === 'establishment');
-  const driverReports = filtered.filter(r => r.entity_type === 'driver');
+  const groupByEntity = useCallback((items: WeeklyReport[]): GroupedEntity[] => {
+    const map = new Map<string, GroupedEntity>();
+    items.forEach(r => {
+      const existing = map.get(r.entity_id);
+      if (existing) {
+        existing.total_deliveries += r.total_deliveries;
+        existing.total_value += r.total_value;
+        existing.platform_fee += r.platform_fee;
+        existing.net_payout += r.net_payout;
+        existing.reports.push(r);
+        if (r.status === 'pending') existing.pendingIds.push(r.id);
+        if (r.status !== 'paid') existing.allPaid = false;
+      } else {
+        map.set(r.entity_id, {
+          entity_id: r.entity_id,
+          entity_name: r.entity_name ?? 'Desconhecido',
+          entity_type: r.entity_type,
+          total_deliveries: r.total_deliveries,
+          total_value: r.total_value,
+          platform_fee: r.platform_fee,
+          net_payout: r.net_payout,
+          pix_key: r.pix_key,
+          reports: [r],
+          allPaid: r.status === 'paid',
+          pendingIds: r.status === 'pending' ? [r.id] : [],
+        });
+      }
+    });
+    return [...map.values()].sort((a, b) => b.net_payout - a.net_payout);
+  }, []);
+
+  const estGroups = useMemo(() => groupByEntity(filtered.filter(r => r.entity_type === 'establishment')), [filtered, groupByEntity]);
+  const driverGroups = useMemo(() => groupByEntity(filtered.filter(r => r.entity_type === 'driver')), [filtered, groupByEntity]);
 
   const totals = useMemo(() =>
     filtered.reduce((a, r) => ({
@@ -215,14 +268,14 @@ const AdminFinancial = () => {
   const pendingCount = useMemo(() => filtered.filter(r => r.status === 'pending').length, [filtered]);
 
   const pieData = useMemo(() => {
-    const estPayout = estReports.reduce((s, r) => s + r.net_payout, 0);
-    const driverPayout = driverReports.reduce((s, r) => s + r.net_payout, 0);
+    const estPayout = estGroups.reduce((s, g) => s + g.net_payout, 0);
+    const driverPayout = driverGroups.reduce((s, g) => s + g.net_payout, 0);
     return [
       { name: 'Plataforma', value: Number(totals.fee.toFixed(2)) },
       { name: 'Entregadores', value: Number(driverPayout.toFixed(2)) },
       { name: 'Estabelecimentos', value: Number(estPayout.toFixed(2)) },
     ].filter(d => d.value > 0);
-  }, [totals, estReports, driverReports]);
+  }, [totals, estGroups, driverGroups]);
 
   const chartData = useMemo(() => {
     const map = new Map<string, { semana: string; receita: number; taxa: number }>();
@@ -242,6 +295,14 @@ const AdminFinancial = () => {
     if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
     setReports(prev => prev.map(r => r.id === id ? { ...r, status: 'paid' } : r));
     toast({ title: 'Marcado como pago' });
+  };
+
+  const markAllAsPaid = async (pendingIds: string[]) => {
+    if (pendingIds.length === 0) return;
+    const { error } = await supabase.from('financial_weekly_reports').update({ status: 'paid' }).in('id', pendingIds);
+    if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
+    setReports(prev => prev.map(r => pendingIds.includes(r.id) ? { ...r, status: 'paid' } : r));
+    toast({ title: `${pendingIds.length} relatório(s) marcado(s) como pago` });
   };
 
   const exportCSV = (data: WeeklyReport[], filename: string) => {
@@ -557,11 +618,33 @@ const AdminFinancial = () => {
 
           <Tabs defaultValue="establishments">
             <TabsList className="w-full sm:w-auto">
-              <TabsTrigger value="establishments" className="flex-1 sm:flex-none text-xs">Estabelecimentos</TabsTrigger>
-              <TabsTrigger value="drivers" className="flex-1 sm:flex-none text-xs">Entregadores</TabsTrigger>
+              <TabsTrigger value="establishments" className="flex-1 sm:flex-none text-xs">💰 A Cobrar</TabsTrigger>
+              <TabsTrigger value="drivers" className="flex-1 sm:flex-none text-xs">💸 Repasses</TabsTrigger>
             </TabsList>
-            <TabsContent value="establishments"><ReportTable data={estReports} markAsPaid={markAsPaid} exportCSV={exportCSV} type="establishment" /></TabsContent>
-            <TabsContent value="drivers"><ReportTable data={driverReports} markAsPaid={markAsPaid} exportCSV={exportCSV} type="driver" /></TabsContent>
+            <TabsContent value="establishments">
+              <GroupedTable
+                groups={estGroups}
+                type="establishment"
+                expandedEntity={expandedEntity}
+                setExpandedEntity={setExpandedEntity}
+                markAsPaid={markAsPaid}
+                markAllAsPaid={markAllAsPaid}
+                exportCSV={exportCSV}
+                formatWeek={formatWeek}
+              />
+            </TabsContent>
+            <TabsContent value="drivers">
+              <GroupedTable
+                groups={driverGroups}
+                type="driver"
+                expandedEntity={expandedEntity}
+                setExpandedEntity={setExpandedEntity}
+                markAsPaid={markAsPaid}
+                markAllAsPaid={markAllAsPaid}
+                exportCSV={exportCSV}
+                formatWeek={formatWeek}
+              />
+            </TabsContent>
           </Tabs>
         </>
       )}
@@ -582,61 +665,117 @@ const AdminFinancial = () => {
   );
 };
 
-const ReportTable = ({ data, type, markAsPaid, exportCSV }: {
-  data: WeeklyReport[];
+/* ─── Grouped Table Component ─── */
+const GroupedTable = ({ groups, type, expandedEntity, setExpandedEntity, markAsPaid, markAllAsPaid, exportCSV, formatWeek }: {
+  groups: GroupedEntity[];
   type: string;
+  expandedEntity: string | null;
+  setExpandedEntity: (id: string | null) => void;
   markAsPaid: (id: string) => void;
+  markAllAsPaid: (ids: string[]) => void;
   exportCSV: (data: WeeklyReport[], filename: string) => void;
-}) => (
-  <Card>
-    <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
-      <CardTitle className="text-sm">{type === 'establishment' ? 'Estabelecimentos' : 'Entregadores'}</CardTitle>
-      <Button variant="outline" size="sm" onClick={() => exportCSV(data, `relatorio-${type}`)} className="h-7 text-xs gap-1">
-        <Download className="h-3 w-3" /> CSV
-      </Button>
-    </CardHeader>
-    <CardContent className="p-0 overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="text-xs">Nome</TableHead>
-            <TableHead className="text-right text-xs">Entregas</TableHead>
-            <TableHead className="text-right text-xs hidden sm:table-cell">Bruto</TableHead>
-            <TableHead className="text-right text-xs hidden sm:table-cell">Taxa</TableHead>
-            <TableHead className="text-right text-xs">Líquido</TableHead>
-            <TableHead className="text-center text-xs">Status</TableHead>
-            <TableHead className="text-center text-xs w-10"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.map(row => (
-            <TableRow key={row.id}>
-              <TableCell className="text-xs font-medium max-w-[120px] truncate">{row.entity_name}</TableCell>
-              <TableCell className="text-right text-xs">{row.total_deliveries}</TableCell>
-              <TableCell className="text-right text-xs hidden sm:table-cell">R$ {row.total_value.toFixed(2)}</TableCell>
-              <TableCell className="text-right text-xs hidden sm:table-cell">R$ {row.platform_fee.toFixed(2)}</TableCell>
-              <TableCell className="text-right text-xs font-medium">R$ {row.net_payout.toFixed(2)}</TableCell>
-              <TableCell className="text-center">
-                <Badge variant={row.status === 'paid' ? 'default' : 'secondary'} className="text-[10px]">
-                  {row.status === 'paid' ? 'Pago' : 'Pendente'}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-center">
-                {row.status === 'pending' && (
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => markAsPaid(row.id)}>
-                    <CheckCircle className="h-3.5 w-3.5 text-green-600" />
-                  </Button>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
-          {data.length === 0 && (
-            <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8 text-xs">Nenhum relatório</TableCell></TableRow>
+  formatWeek: (ws: string) => string;
+}) => {
+  const allPendingIds = groups.flatMap(g => g.pendingIds);
+  const allReports = groups.flatMap(g => g.reports);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
+        <CardTitle className="text-sm">
+          {type === 'establishment' ? 'Cobranças de Estabelecimentos' : 'Repasses para Entregadores'}
+          <span className="text-muted-foreground font-normal ml-2">({groups.length})</span>
+        </CardTitle>
+        <div className="flex gap-2">
+          {allPendingIds.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => markAllAsPaid(allPendingIds)} className="h-7 text-xs gap-1">
+              <CheckCircle className="h-3 w-3" /> Marcar todos como pago
+            </Button>
           )}
-        </TableBody>
-      </Table>
-    </CardContent>
-  </Card>
-);
+          <Button variant="outline" size="sm" onClick={() => exportCSV(allReports, `relatorio-${type}`)} className="h-7 text-xs gap-1">
+            <Download className="h-3 w-3" /> CSV
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0 overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-xs">Nome</TableHead>
+              {type === 'driver' && <TableHead className="text-xs hidden sm:table-cell">PIX</TableHead>}
+              <TableHead className="text-right text-xs">Entregas</TableHead>
+              <TableHead className="text-right text-xs hidden sm:table-cell">Bruto</TableHead>
+              <TableHead className="text-right text-xs hidden sm:table-cell">Taxa</TableHead>
+              <TableHead className="text-right text-xs">{type === 'establishment' ? 'A Cobrar' : 'Repasse'}</TableHead>
+              <TableHead className="text-center text-xs">Status</TableHead>
+              <TableHead className="text-center text-xs w-10"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {groups.map(g => (
+              <React.Fragment key={g.entity_id}>
+                <TableRow
+                  key={g.entity_id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => setExpandedEntity(expandedEntity === g.entity_id ? null : g.entity_id)}
+                >
+                  <TableCell className="text-xs font-medium max-w-[140px] truncate">{g.entity_name}</TableCell>
+                  {type === 'driver' && (
+                    <TableCell className="text-xs hidden sm:table-cell max-w-[120px] truncate text-muted-foreground">
+                      {g.pix_key || <span className="text-destructive">Sem PIX</span>}
+                    </TableCell>
+                  )}
+                  <TableCell className="text-right text-xs">{g.total_deliveries}</TableCell>
+                  <TableCell className="text-right text-xs hidden sm:table-cell">R$ {g.total_value.toFixed(2)}</TableCell>
+                  <TableCell className="text-right text-xs hidden sm:table-cell">R$ {g.platform_fee.toFixed(2)}</TableCell>
+                  <TableCell className="text-right text-xs font-bold">R$ {g.net_payout.toFixed(2)}</TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant={g.allPaid ? 'default' : 'secondary'} className="text-[10px]">
+                      {g.allPaid ? 'Pago' : 'Pendente'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {g.pendingIds.length > 0 && (
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); markAllAsPaid(g.pendingIds); }}>
+                        <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+                {expandedEntity === g.entity_id && g.reports.map(r => (
+                  <TableRow key={r.id} className="bg-muted/30">
+                    <TableCell className="text-[10px] text-muted-foreground pl-6">
+                      {formatWeek(r.week_start)} — {format(new Date(r.week_end + 'T00:00:00'), 'dd/MM', { locale: ptBR })}
+                    </TableCell>
+                    {type === 'driver' && <TableCell className="hidden sm:table-cell" />}
+                    <TableCell className="text-right text-[10px]">{r.total_deliveries}</TableCell>
+                    <TableCell className="text-right text-[10px] hidden sm:table-cell">R$ {r.total_value.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-[10px] hidden sm:table-cell">R$ {r.platform_fee.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-[10px]">R$ {r.net_payout.toFixed(2)}</TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant={r.status === 'paid' ? 'default' : 'outline'} className="text-[9px]">
+                        {r.status === 'paid' ? 'Pago' : 'Pendente'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {r.status === 'pending' && (
+                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => markAsPaid(r.id)}>
+                          <CheckCircle className="h-3 w-3 text-green-600" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </React.Fragment>
+            ))}
+            {groups.length === 0 && (
+              <TableRow><TableCell colSpan={type === 'driver' ? 8 : 7} className="text-center text-muted-foreground py-8 text-xs">Nenhum relatório</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+};
 
 export default AdminFinancial;
