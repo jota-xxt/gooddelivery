@@ -247,7 +247,7 @@ const AdminDashboard = () => {
             ) : activeDeliveries.map(d => (
               <div key={d.id} className="flex items-center justify-between border-b border-border pb-2 last:border-0">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{d.customer_name}</p>
+                  <p className="text-sm font-medium truncate">{d.driver_name || 'Sem entregador'}</p>
                   <p className="text-xs text-muted-foreground truncate">{d.delivery_address}</p>
                 </div>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${statusColor[d.status] ?? ''}`}>
