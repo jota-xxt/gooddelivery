@@ -371,7 +371,7 @@ const DriverHome = () => {
     if (!newStatus) {
       updateData.queue_joined_at = null;
     }
-    const { error } = await supabase.from('drivers').update(updateData as any).eq('id', driverId);
+    const { error } = await supabase.from('drivers').update(updateData).eq('id', driverId);
     setTogglingOnline(false);
     if (error) { toast.error('Erro ao alterar status'); return; }
     setIsOnline(newStatus);
