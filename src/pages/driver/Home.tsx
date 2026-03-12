@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDeliveryActions } from '@/hooks/useDeliveryActions';
 import { type MapMarker } from '@/components/MapPicker';
-import DriverQueueVisual from '@/components/DriverQueueVisual';
+import DriverQueueVisual, { type QueueDriver } from '@/components/DriverQueueVisual';
 import ActiveDeliveryCard from '@/components/driver/ActiveDeliveryCard';
 import QueueOfferCard from '@/components/driver/QueueOfferCard';
 import PoolDeliveriesList from '@/components/driver/PoolDeliveriesList';
