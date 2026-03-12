@@ -281,7 +281,7 @@ const AdminDashboard = () => {
               <tbody>
                 {recentDeliveries.map(d => (
                   <tr key={d.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
-                    <td className="p-3 font-medium">{d.customer_name}</td>
+                    <td className="p-3 font-medium">{d.driver_name || 'Sem entregador'}</td>
                     <td className="p-3 text-muted-foreground hidden md:table-cell truncate max-w-[200px]">{d.delivery_address}</td>
                     <td className="p-3 text-right">R$ {Number(d.delivery_fee).toFixed(2)}</td>
                     <td className="p-3 text-center">
