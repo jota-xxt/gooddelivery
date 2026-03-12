@@ -31,6 +31,7 @@ interface WeeklyReport {
   net_payout: number;
   status: string;
   entity_name?: string;
+  pix_key?: string | null;
 }
 
 interface GroupedEntity {
