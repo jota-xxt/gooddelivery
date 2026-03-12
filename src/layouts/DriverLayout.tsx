@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import BottomNav from '@/components/BottomNav';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { Home, Clock, DollarSign, User, Bell } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
