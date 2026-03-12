@@ -70,8 +70,8 @@ const DriverHome = () => {
         setIsOnline(driverData.is_online);
         setBlockedUntil(driverData.blocked_until ?? null);
         // Fix: if driver is online in queue mode but queue_joined_at is null, set it
-        if (driverData.is_online && mode === 'queue' && !(driverData as any).queue_joined_at) {
-          await supabase.from('drivers').update({ queue_joined_at: new Date().toISOString() } as any).eq('id', driverData.id);
+        if (driverData.is_online && mode === 'queue' && !driverData.queue_joined_at) {
+          await supabase.from('drivers').update({ queue_joined_at: new Date().toISOString() }).eq('id', driverData.id);
         }
       }
       if (modeData) setDeliveryMode(mode);
