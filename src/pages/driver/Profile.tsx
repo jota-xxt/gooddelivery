@@ -40,7 +40,7 @@ const DriverProfile = () => {
 
     setProfile(profileRes.data);
     if (driverRes.data) {
-      setDriver(driverRes.data as any);
+      setDriver(driverRes.data);
       setPixKey(driverRes.data.pix_key ?? '');
     }
     setNotifications(notifsRes.data ?? []);

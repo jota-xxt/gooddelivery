@@ -4,8 +4,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
 import { Send, Loader2, MessageSquare } from 'lucide-react';
 
 interface ChatMessage {
@@ -34,17 +32,13 @@ const ChatDialog = ({ deliveryId, open, onOpenChange, otherPartyName }: ChatDial
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
-      if (scrollRef.current) {
-        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      }
+      if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }, 50);
   }, []);
 
-  // Load messages
   useEffect(() => {
     if (!open || !deliveryId) return;
     setLoading(true);
-
     supabase
       .from('chat_messages')
       .select('*')
@@ -57,64 +51,38 @@ const ChatDialog = ({ deliveryId, open, onOpenChange, otherPartyName }: ChatDial
       });
   }, [open, deliveryId, scrollToBottom]);
 
-  // Realtime subscription
   useEffect(() => {
     if (!open || !deliveryId) return;
-
     const channel = supabase
       .channel(`chat-${deliveryId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `delivery_id=eq.${deliveryId}`,
-        },
-        (payload) => {
-          const newMsg = payload.new as ChatMessage;
-          setMessages((prev) => {
-            if (prev.some(m => m.id === newMsg.id)) return prev;
-            return [...prev, newMsg];
-          });
-          scrollToBottom();
-        }
-      )
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `delivery_id=eq.${deliveryId}` }, (payload) => {
+        const newMsg = payload.new as ChatMessage;
+        setMessages(prev => prev.some(m => m.id === newMsg.id) ? prev : [...prev, newMsg]);
+        scrollToBottom();
+      })
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [open, deliveryId, scrollToBottom]);
 
-  // Focus input when opened
   useEffect(() => {
-    if (open) {
-      setTimeout(() => inputRef.current?.focus(), 200);
-    }
+    if (open) setTimeout(() => inputRef.current?.focus(), 200);
   }, [open]);
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newMessage.trim() || sending) return;
-
     setSending(true);
     const { error } = await supabase.from('chat_messages').insert({
       delivery_id: deliveryId,
       sender_id: user.id,
       message: newMessage.trim(),
-    } as any);
-
+    });
     setSending(false);
-    if (!error) {
-      setNewMessage('');
-      inputRef.current?.focus();
-    }
+    if (!error) { setNewMessage(''); inputRef.current?.focus(); }
   };
 
-  const formatTime = (dateStr: string) => {
-    return new Date(dateStr).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  };
+  const formatTime = (dateStr: string) =>
+    new Date(dateStr).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -126,7 +94,6 @@ const ChatDialog = ({ deliveryId, open, onOpenChange, otherPartyName }: ChatDial
           </DialogTitle>
         </DialogHeader>
 
-        {/* Messages area */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
           {loading ? (
             <div className="flex justify-center py-8">
@@ -142,17 +109,10 @@ const ChatDialog = ({ deliveryId, open, onOpenChange, otherPartyName }: ChatDial
             messages.map((msg) => {
               const isMine = msg.sender_id === user?.id;
               return (
-                <div
-                  key={msg.id}
-                  className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[75%] rounded-2xl px-3 py-2 ${
-                      isMine
-                        ? 'bg-primary text-primary-foreground rounded-br-md'
-                        : 'bg-muted text-foreground rounded-bl-md'
-                    }`}
-                  >
+                <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[75%] rounded-2xl px-3 py-2 ${
+                    isMine ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-muted text-foreground rounded-bl-md'
+                  }`}>
                     <p className="text-sm break-words">{msg.message}</p>
                     <p className={`text-[10px] mt-0.5 ${isMine ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
                       {formatTime(msg.created_at)}
@@ -164,16 +124,8 @@ const ChatDialog = ({ deliveryId, open, onOpenChange, otherPartyName }: ChatDial
           )}
         </div>
 
-        {/* Input area */}
         <form onSubmit={handleSend} className="flex items-center gap-2 px-3 py-3 border-t bg-background">
-          <Input
-            ref={inputRef}
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Digite sua mensagem..."
-            className="flex-1"
-            maxLength={500}
-          />
+          <Input ref={inputRef} value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Digite sua mensagem..." className="flex-1" maxLength={500} />
           <Button type="submit" size="icon" disabled={!newMessage.trim() || sending} className="shrink-0">
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>

@@ -53,7 +53,8 @@ const DriverEarnings = () => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const weekStart = new Date(todayStart);
-    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const dayOfWeek = weekStart.getDay();
+    weekStart.setDate(weekStart.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1)); // Monday start
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     let today = 0, week = 0, month = 0, total = 0;

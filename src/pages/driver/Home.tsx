@@ -2,14 +2,14 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDeliveryActions } from '@/hooks/useDeliveryActions';
-import MapPicker, { type MapMarker } from '@/components/MapPicker';
+import { type MapMarker } from '@/components/MapPicker';
 import DriverQueueVisual from '@/components/DriverQueueVisual';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import ActiveDeliveryCard from '@/components/driver/ActiveDeliveryCard';
+import QueueOfferCard from '@/components/driver/QueueOfferCard';
+import PoolDeliveriesList from '@/components/driver/PoolDeliveriesList';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { MapPin, DollarSign, Navigation, Clock, Loader2, Store, Package, CheckCircle2, Power, Truck, Radio, ListOrdered, X, Timer, Ban, MessageSquare } from 'lucide-react';
+import { Loader2, Power, Ban } from 'lucide-react';
 import ChatDialog from '@/components/ChatDialog';
 
 interface DeliveryWithEstablishment {
@@ -36,6 +36,26 @@ interface DeliveryOffer {
   delivery?: DeliveryWithEstablishment;
 }
 
+// Simple geocode cache to avoid redundant Nominatim calls
+const geocodeCache = new Map<string, { lat: number; lng: number }>();
+
+const geocodeAddress = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+  if (geocodeCache.has(address)) return geocodeCache.get(address)!;
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=br`,
+      { headers: { 'User-Agent': 'GoodDeliveryApp/1.0' } }
+    );
+    const data = await res.json();
+    if (data.length > 0) {
+      const result = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      geocodeCache.set(address, result);
+      return result;
+    }
+  } catch {}
+  return null;
+};
+
 const DriverHome = () => {
   const { user } = useAuth();
   const { acceptDelivery, advanceDelivery, loading: actionLoading } = useDeliveryActions();
@@ -48,9 +68,11 @@ const DriverHome = () => {
   const [todayStats, setTodayStats] = useState({ deliveries: 0, earnings: 0 });
   const [deliveryMode, setDeliveryMode] = useState<'pool' | 'queue'>('pool');
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
+  const [totalOnlineDrivers, setTotalOnlineDrivers] = useState(0);
+  const [searchingCount, setSearchingCount] = useState(0);
   const [currentOffer, setCurrentOffer] = useState<DeliveryOffer | null>(null);
   const [offerTimer, setOfferTimer] = useState(60);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [rejectingOffer, setRejectingOffer] = useState(false);
   const [blockedUntil, setBlockedUntil] = useState<string | null>(null);
   const [blockCountdown, setBlockCountdown] = useState<string | null>(null);
@@ -69,7 +91,6 @@ const DriverHome = () => {
         setDriverId(driverData.id);
         setIsOnline(driverData.is_online);
         setBlockedUntil(driverData.blocked_until ?? null);
-        // Fix: if driver is online in queue mode but queue_joined_at is null, set it
         if (driverData.is_online && mode === 'queue' && !driverData.queue_joined_at) {
           await supabase.from('drivers').update({ queue_joined_at: new Date().toISOString() }).eq('id', driverData.id);
         }
@@ -81,27 +102,19 @@ const DriverHome = () => {
 
   // Block countdown timer
   useEffect(() => {
-    if (!blockedUntil) {
-      setBlockCountdown(null);
-      return;
-    }
-
+    if (!blockedUntil) { setBlockCountdown(null); return; }
     const updateCountdown = () => {
       const remaining = new Date(blockedUntil).getTime() - Date.now();
       if (remaining <= 0) {
         setBlockedUntil(null);
         setBlockCountdown(null);
-        // Clear blocked_until in DB
-        if (driverId) {
-          supabase.from('drivers').update({ blocked_until: null }).eq('id', driverId).then(() => {});
-        }
+        if (driverId) supabase.from('drivers').update({ blocked_until: null }).eq('id', driverId);
         return;
       }
       const mins = Math.floor(remaining / 60000);
       const secs = Math.floor((remaining % 60000) / 1000);
       setBlockCountdown(`${mins}:${secs.toString().padStart(2, '0')}`);
     };
-
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
@@ -128,64 +141,51 @@ const DriverHome = () => {
       });
   }, [driverId, activeDelivery]);
 
-  // Geocode addresses for active delivery map
+  // Geocode addresses for active delivery map (with cache)
   useEffect(() => {
     if (!activeDelivery) { setDeliveryMapMarkers([]); return; }
-    const markers: MapMarker[] = [];
-    const promises: Promise<void>[] = [];
-
-    // Establishment pin (use saved coords or geocode)
-    if (activeDelivery.establishment_lat && activeDelivery.establishment_lng) {
-      markers.push({ lat: activeDelivery.establishment_lat, lng: activeDelivery.establishment_lng, label: activeDelivery.establishment_name ?? 'Coleta', color: '#3b82f6' });
-    } else if (activeDelivery.establishment_address) {
-      promises.push(
-        fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(activeDelivery.establishment_address)}&limit=1&countrycodes=br`, { headers: { 'User-Agent': 'GoodDeliveryApp/1.0' } })
-          .then(r => r.json())
-          .then(data => { if (data.length > 0) markers.push({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: activeDelivery.establishment_name ?? 'Coleta', color: '#3b82f6' }); })
-          .catch(() => {})
-      );
-    }
-
-    // Delivery address geocode
-    promises.push(
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(activeDelivery.delivery_address)}&limit=1&countrycodes=br`, { headers: { 'User-Agent': 'GoodDeliveryApp/1.0' } })
-        .then(r => r.json())
-        .then(data => { if (data.length > 0) markers.push({ lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon), label: 'Entrega', color: '#10b981' }); })
-        .catch(() => {})
-    );
-
-    Promise.all(promises).then(() => setDeliveryMapMarkers(markers));
+    let cancelled = false;
+    const load = async () => {
+      const markers: MapMarker[] = [];
+      if (activeDelivery.establishment_lat && activeDelivery.establishment_lng) {
+        markers.push({ lat: activeDelivery.establishment_lat, lng: activeDelivery.establishment_lng, label: activeDelivery.establishment_name ?? 'Coleta', color: '#3b82f6' });
+      } else if (activeDelivery.establishment_address) {
+        const coords = await geocodeAddress(activeDelivery.establishment_address);
+        if (coords) markers.push({ lat: coords.lat, lng: coords.lng, label: activeDelivery.establishment_name ?? 'Coleta', color: '#3b82f6' });
+      }
+      const destCoords = await geocodeAddress(activeDelivery.delivery_address);
+      if (destCoords) markers.push({ lat: destCoords.lat, lng: destCoords.lng, label: 'Entrega', color: '#10b981' });
+      if (!cancelled) setDeliveryMapMarkers(markers);
+    };
+    load();
+    return () => { cancelled = true; };
   }, [activeDelivery]);
 
-  // Queue position
-  const fetchQueuePosition = useCallback(async () => {
+  // Queue position + searching count (shared data for DriverQueueVisual)
+  const fetchQueueData = useCallback(async () => {
     if (!driverId || deliveryMode !== 'queue' || !isOnline) {
       setQueuePosition(null);
+      setTotalOnlineDrivers(0);
+      setSearchingCount(0);
       return;
     }
-    const { data: drivers } = await supabase
-      .from('drivers')
-      .select('id')
-      .eq('is_online', true)
-      .not('queue_joined_at', 'is', null)
-      .order('queue_joined_at', { ascending: true });
-
-    if (drivers) {
-      const pos = drivers.findIndex(d => d.id === driverId);
+    const [driversRes, searchingRes] = await Promise.all([
+      supabase.from('drivers').select('id').eq('is_online', true).not('queue_joined_at', 'is', null).order('queue_joined_at', { ascending: true }),
+      supabase.from('deliveries').select('id', { count: 'exact', head: true }).eq('status', 'searching'),
+    ]);
+    if (driversRes.data) {
+      const pos = driversRes.data.findIndex(d => d.id === driverId);
       setQueuePosition(pos >= 0 ? pos + 1 : null);
+      setTotalOnlineDrivers(driversRes.data.length);
     }
+    setSearchingCount(searchingRes.count ?? 0);
   }, [driverId, deliveryMode, isOnline]);
 
   // Fetch offer for queue mode
   const fetchCurrentOffer = useCallback(async () => {
-    if (!driverId || deliveryMode !== 'queue') {
-      setCurrentOffer(null);
-      return;
-    }
-
-    // Use any type since delivery_offers is new and not in generated types yet
+    if (!driverId || deliveryMode !== 'queue') { setCurrentOffer(null); return; }
     const { data } = await supabase
-      .from('delivery_offers' as any)
+      .from('delivery_offers')
       .select('id, delivery_id, offered_at, status')
       .eq('driver_id', driverId)
       .eq('status', 'pending')
@@ -194,11 +194,10 @@ const DriverHome = () => {
       .maybeSingle();
 
     if (data) {
-      // Fetch delivery details
       const { data: del } = await supabase
         .from('deliveries')
         .select('id, delivery_address, delivery_fee, status, establishment_id, created_at, accepted_at, observations, urgency')
-        .eq('id', (data as any).delivery_id)
+        .eq('id', data.delivery_id)
         .maybeSingle();
 
       let delivery: DeliveryWithEstablishment | undefined;
@@ -206,44 +205,38 @@ const DriverHome = () => {
         const { data: est } = await supabase.from('establishments').select('business_name, address').eq('id', del.establishment_id).maybeSingle();
         delivery = { ...del, establishment_name: est?.business_name, establishment_address: est?.address };
       }
-
-      setCurrentOffer({ ...(data as any), delivery });
+      setCurrentOffer({ ...data, delivery });
     } else {
       setCurrentOffer(null);
     }
   }, [driverId, deliveryMode]);
 
-  // Offer timer countdown
+  // Offer timer countdown with proper cleanup
   useEffect(() => {
     if (!currentOffer) {
       setOfferTimer(60);
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
       return;
     }
-
+    const offerId = currentOffer.id;
     const updateTimer = () => {
       const elapsed = Math.floor((Date.now() - new Date(currentOffer.offered_at).getTime()) / 1000);
       const remaining = Math.max(0, 60 - elapsed);
       setOfferTimer(remaining);
       if (remaining === 0) {
-        setCurrentOffer(null);
-        if (timerRef.current) clearInterval(timerRef.current);
-        // Reprocess queue so next driver gets the offer
-        supabase.functions.invoke('process-delivery-queue', {
-          body: { delivery_id: currentOffer.delivery_id },
-        }).catch(() => {});
+        if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+        setCurrentOffer(prev => prev?.id === offerId ? null : prev);
+        supabase.functions.invoke('process-delivery-queue', { body: { delivery_id: currentOffer.delivery_id } }).catch(() => {});
         fetchCurrentOffer();
       }
     };
-
     updateTimer();
     timerRef.current = setInterval(updateTimer, 1000);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; } };
   }, [currentOffer, fetchCurrentOffer]);
 
   const fetchDeliveries = useCallback(async () => {
     if (!driverId) return;
-
     const { data: active } = await supabase
       .from('deliveries')
       .select('id, delivery_address, delivery_fee, status, establishment_id, created_at, accepted_at, observations, urgency')
@@ -254,29 +247,22 @@ const DriverHome = () => {
 
     if (active) {
       const { data: est } = await supabase.from('establishments').select('business_name, address, latitude, longitude').eq('id', active.establishment_id).maybeSingle();
-      setActiveDelivery({
-        ...active,
-        establishment_name: est?.business_name,
-        establishment_address: est?.address,
-        establishment_lat: est?.latitude,
-        establishment_lng: est?.longitude,
-      });
+      setActiveDelivery({ ...active, establishment_name: est?.business_name, establishment_address: est?.address, establishment_lat: est?.latitude, establishment_lng: est?.longitude });
       setAvailableDeliveries([]);
       return;
     }
     setActiveDelivery(null);
 
     if (deliveryMode === 'queue') {
-      fetchQueuePosition();
+      fetchQueueData();
       fetchCurrentOffer();
       return;
     }
 
-    // Pool mode
     if (isOnline) {
       const { data: pool } = await supabase
         .from('deliveries')
-      .select('id, delivery_address, delivery_fee, status, establishment_id, created_at, accepted_at, observations, urgency')
+        .select('id, delivery_address, delivery_fee, status, establishment_id, created_at, accepted_at, observations, urgency')
         .eq('status', 'searching')
         .order('created_at', { ascending: false })
         .limit(20);
@@ -296,81 +282,70 @@ const DriverHome = () => {
     } else {
       setAvailableDeliveries([]);
     }
-  }, [driverId, isOnline, deliveryMode, fetchQueuePosition, fetchCurrentOffer]);
+  }, [driverId, isOnline, deliveryMode, fetchQueueData, fetchCurrentOffer]);
 
+  // Realtime subscriptions
   useEffect(() => {
     fetchDeliveries();
     if (!driverId) return;
-
     const channels: ReturnType<typeof supabase.channel>[] = [];
 
-    const deliveriesChannel = supabase
-      .channel('deliveries-pool')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => fetchDeliveries())
-      .subscribe();
-    channels.push(deliveriesChannel);
+    channels.push(
+      supabase.channel('deliveries-pool')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => fetchDeliveries())
+        .subscribe()
+    );
 
     if (deliveryMode === 'queue') {
-      const offersChannel = supabase
-        .channel('delivery-offers')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_offers' }, () => {
-          fetchCurrentOffer();
-          fetchQueuePosition();
-        })
-        .subscribe();
-      channels.push(offersChannel);
-
-      // Listen for driver blocked_until changes
-      const driversChannel = supabase
-        .channel('driver-block-status')
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'drivers', filter: `id=eq.${driverId}` }, (payload) => {
-          if (payload.new) {
-            setBlockedUntil((payload.new as any).blocked_until ?? null);
-          }
-        })
-        .subscribe();
-      channels.push(driversChannel);
+      channels.push(
+        supabase.channel('delivery-offers')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_offers' }, () => { fetchCurrentOffer(); fetchQueueData(); })
+          .subscribe()
+      );
+      channels.push(
+        supabase.channel('driver-block-status')
+          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'drivers', filter: `id=eq.${driverId}` }, (payload) => {
+            if (payload.new) setBlockedUntil((payload.new as Record<string, unknown>).blocked_until as string | null);
+          })
+          .subscribe()
+      );
+      // Also listen for driver changes to update queue visual
+      channels.push(
+        supabase.channel('queue-drivers-sync')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'drivers' }, () => fetchQueueData())
+          .subscribe()
+      );
     }
 
-    // C) Listen for delivery_mode changes in real-time
-    const settingsChannel = supabase
-      .channel('app-settings-mode')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, async (payload) => {
-        if (payload.new && (payload.new as any).key === 'delivery_mode') {
-          const newMode = (payload.new as any).value as 'pool' | 'queue';
-          setDeliveryMode(newMode);
-          toast.info(newMode === 'queue' ? 'Modo alterado para Fila' : 'Modo alterado para Pool Aberto');
-          // If switching to queue and driver is already online, set queue_joined_at
-          if (newMode === 'queue' && isOnline && driverId) {
-            await supabase.from('drivers').update({ queue_joined_at: new Date().toISOString() }).eq('id', driverId);
+    channels.push(
+      supabase.channel('app-settings-mode')
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, async (payload) => {
+          if (payload.new && (payload.new as Record<string, unknown>).key === 'delivery_mode') {
+            const newMode = (payload.new as Record<string, unknown>).value as 'pool' | 'queue';
+            setDeliveryMode(newMode);
+            toast.info(newMode === 'queue' ? 'Modo alterado para Fila' : 'Modo alterado para Pool Aberto');
+            if (newMode === 'queue' && isOnline && driverId) {
+              await supabase.from('drivers').update({ queue_joined_at: new Date().toISOString() }).eq('id', driverId);
+            }
+            if (newMode === 'pool' && driverId) {
+              await supabase.from('drivers').update({ queue_joined_at: null }).eq('id', driverId);
+            }
           }
-          // If switching to pool, clear queue_joined_at
-          if (newMode === 'pool' && driverId) {
-            await supabase.from('drivers').update({ queue_joined_at: null }).eq('id', driverId);
-          }
-        }
-      })
-      .subscribe();
-    channels.push(settingsChannel);
+        })
+        .subscribe()
+    );
 
     return () => { channels.forEach(c => supabase.removeChannel(c)); };
-  }, [driverId, isOnline, deliveryMode, fetchDeliveries, fetchCurrentOffer, fetchQueuePosition]);
+  }, [driverId, isOnline, deliveryMode, fetchDeliveries, fetchCurrentOffer, fetchQueueData]);
 
   const toggleOnline = async () => {
     if (!driverId || togglingOnline) return;
-    if (isOnline && activeDelivery) {
-      toast.error('Finalize a corrida ativa antes de ficar offline');
-      return;
-    }
+    if (isOnline && activeDelivery) { toast.error('Finalize a corrida ativa antes de ficar offline'); return; }
     setTogglingOnline(true);
     const newStatus = !isOnline;
     const updateData: { is_online: boolean; queue_joined_at?: string | null } = { is_online: newStatus };
-    if (newStatus && deliveryMode === 'queue') {
-      updateData.queue_joined_at = new Date().toISOString();
-    }
-    if (!newStatus) {
-      updateData.queue_joined_at = null;
-    }
+    if (newStatus && deliveryMode === 'queue') updateData.queue_joined_at = new Date().toISOString();
+    if (!newStatus) updateData.queue_joined_at = null;
     const { error } = await supabase.from('drivers').update(updateData).eq('id', driverId);
     setTogglingOnline(false);
     if (error) { toast.error('Erro ao alterar status'); return; }
@@ -380,10 +355,7 @@ const DriverHome = () => {
 
   const handleAccept = async (deliveryId: string) => {
     const ok = await acceptDelivery(deliveryId);
-    if (ok) {
-      setCurrentOffer(null);
-      fetchDeliveries();
-    }
+    if (ok) { setCurrentOffer(null); fetchDeliveries(); }
   };
 
   const handleRejectOffer = async () => {
@@ -419,25 +391,6 @@ const DriverHome = () => {
     window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`, '_blank');
   };
 
-  const statusActions: Record<string, string> = {
-    accepted: 'Cheguei no estabelecimento',
-    collecting: 'Saí para entrega',
-    delivering: 'Entrega concluída',
-  };
-
-  const timeSince = (dateStr: string) => {
-    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
-    if (diff < 1) return 'agora';
-    if (diff < 60) return `${diff}min`;
-    return `${Math.floor(diff / 60)}h`;
-  };
-
-  const stepperSteps = [
-    { key: 'accepted', icon: Store, label: 'Aceito' },
-    { key: 'collecting', icon: Package, label: 'Coletando' },
-    { key: 'delivering', icon: MapPin, label: 'Entregando' },
-  ];
-
   if (initialLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -445,6 +398,8 @@ const DriverHome = () => {
       </div>
     );
   }
+
+  const isBlocked = blockedUntil && new Date(blockedUntil).getTime() > Date.now();
 
   return (
     <div className="space-y-4 pb-4">
@@ -462,19 +417,11 @@ const DriverHome = () => {
             </p>
           </div>
           <div className="relative">
-            {isOnline && (
-              <div className="absolute inset-0 rounded-full bg-primary-foreground/20 animate-ping" />
-            )}
-            <Switch
-              checked={isOnline}
-              onCheckedChange={toggleOnline}
-              disabled={togglingOnline}
-              className="scale-125"
-            />
+            {isOnline && <div className="absolute inset-0 rounded-full bg-primary-foreground/20 animate-ping" />}
+            <Switch checked={isOnline} onCheckedChange={toggleOnline} disabled={togglingOnline} className="scale-125" />
           </div>
         </div>
 
-        {/* Today summary */}
         {isOnline && (
           <div className="flex gap-3 mt-4">
             <div className="flex-1 rounded-lg bg-primary-foreground/10 px-3 py-2 backdrop-blur-sm">
@@ -490,200 +437,30 @@ const DriverHome = () => {
       </div>
 
       <div className="px-4 space-y-4">
-        {/* Active delivery */}
         {activeDelivery && (
-          <Card className="border-2 border-primary overflow-hidden">
-            <div className="bg-primary px-4 py-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-primary-foreground">Entrega Ativa</p>
-                {activeDelivery.accepted_at && (
-                  <Badge variant="secondary" className="text-xs">
-                    <Clock className="h-3 w-3 mr-1" />
-                    {timeSince(activeDelivery.accepted_at)}
-                  </Badge>
-                )}
-              </div>
-            </div>
-            <CardContent className="py-4 space-y-4">
-              {/* Visual stepper */}
-              <div className="flex items-center justify-between px-2">
-                {stepperSteps.map((step, i) => {
-                  const currentIdx = stepperSteps.findIndex(s => s.key === activeDelivery.status);
-                  const done = i < currentIdx;
-                  const active = i === currentIdx;
-                  const Icon = step.icon;
-                  return (
-                    <div key={step.key} className="flex items-center">
-                      <div className="flex flex-col items-center gap-1">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                          done ? 'bg-green-500 text-white' : active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-                        }`}>
-                          {done ? <CheckCircle2 className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
-                        </div>
-                        <span className={`text-[10px] font-medium ${active ? 'text-primary' : 'text-muted-foreground'}`}>
-                          {step.label}
-                        </span>
-                      </div>
-                      {i < stepperSteps.length - 1 && (
-                        <div className={`w-8 h-0.5 mx-1 mb-4 ${done ? 'bg-green-500' : 'bg-muted'}`} />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Value */}
-              <div className="text-center">
-                <span className="text-2xl font-bold text-primary">R$ {Number(activeDelivery.delivery_fee).toFixed(2)}</span>
-              </div>
-
-              {/* Delivery map */}
-              {deliveryMapMarkers.length > 0 && (
-                <MapPicker
-                  mode="view"
-                  markers={deliveryMapMarkers}
-                  height="180px"
-                />
-              )}
-
-              {/* Route visualization */}
-              <div className="relative pl-6 space-y-3">
-                <div className="absolute left-[11px] top-2 bottom-2 w-0.5 border-l-2 border-dashed border-muted-foreground/30" />
-                <div className="relative flex items-start gap-3">
-                  <div className="absolute -left-6 top-0.5 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                    <Store className="h-3 w-3 text-primary-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Coleta</p>
-                    <p className="text-sm font-medium">{activeDelivery.establishment_name}</p>
-                    <p className="text-xs text-muted-foreground">{activeDelivery.establishment_address}</p>
-                  </div>
-                </div>
-                <div className="relative flex items-start gap-3">
-                  <div className="absolute -left-6 top-0.5 h-5 w-5 rounded-full bg-green-500 flex items-center justify-center">
-                    <MapPin className="h-3 w-3 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Entrega</p>
-                    <p className="text-sm font-medium truncate max-w-[240px]">{activeDelivery.delivery_address}</p>
-                    {activeDelivery.observations && <p className="text-xs text-muted-foreground">{activeDelivery.observations}</p>}
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-2">
-                <Button
-                  className="flex-1 h-12 font-bold text-base"
-                  onClick={handleAdvance}
-                  disabled={actionLoading}
-                >
-                  {actionLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                  {statusActions[activeDelivery.status]}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-12 w-12"
-                  onClick={() => setChatOpen(true)}
-                >
-                  <MessageSquare className="h-5 w-5" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-12 w-12"
-                  onClick={() => openMaps(
-                    activeDelivery.status === 'accepted' || activeDelivery.status === 'collecting'
-                      ? activeDelivery.establishment_address ?? ''
-                      : activeDelivery.delivery_address
-                  )}
-                >
-                  <Navigation className="h-5 w-5" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <ActiveDeliveryCard
+            delivery={activeDelivery}
+            mapMarkers={deliveryMapMarkers}
+            actionLoading={actionLoading}
+            onAdvance={handleAdvance}
+            onOpenChat={() => setChatOpen(true)}
+            onOpenMaps={openMaps}
+          />
         )}
 
-        {/* Queue mode: offer card */}
         {!activeDelivery && isOnline && deliveryMode === 'queue' && currentOffer?.delivery && (
-          <Card className="border-2 border-primary overflow-hidden animate-in fade-in">
-            <div className="bg-primary px-4 py-2 flex items-center justify-between">
-              <p className="text-sm font-semibold text-primary-foreground">Nova Corrida Para Você!</p>
-              <div className="flex items-center gap-1.5">
-                <Timer className="h-4 w-4 text-primary-foreground" />
-                <span className={`text-lg font-bold text-primary-foreground ${offerTimer <= 10 ? 'animate-pulse' : ''}`}>
-                  {offerTimer}s
-                </span>
-              </div>
-            </div>
-            <CardContent className="py-4 space-y-4">
-              {/* Timer progress bar */}
-              <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-1000 ${offerTimer <= 10 ? 'bg-destructive' : 'bg-primary'}`}
-                  style={{ width: `${(offerTimer / 60) * 100}%` }}
-                />
-              </div>
-
-              {/* Value */}
-              <div className="text-center">
-                <span className="text-3xl font-bold text-primary flex items-center justify-center gap-1">
-                  <DollarSign className="h-6 w-6" />
-                  R$ {Number(currentOffer.delivery.delivery_fee).toFixed(2)}
-                </span>
-              </div>
-
-              {/* Route */}
-              <div className="relative pl-6 space-y-3">
-                <div className="absolute left-[11px] top-2 bottom-2 w-0.5 border-l-2 border-dashed border-muted-foreground/30" />
-                <div className="relative flex items-start gap-2">
-                  <div className="absolute -left-6 top-0.5 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                    <Store className="h-3 w-3 text-primary-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{currentOffer.delivery.establishment_name}</p>
-                    <p className="text-xs text-muted-foreground truncate max-w-[240px]">{currentOffer.delivery.establishment_address}</p>
-                  </div>
-                </div>
-                <div className="relative flex items-start gap-2">
-                  <div className="absolute -left-6 top-0.5 h-5 w-5 rounded-full bg-green-500 flex items-center justify-center">
-                    <MapPin className="h-3 w-3 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium truncate max-w-[240px]">{currentOffer.delivery.delivery_address}</p>
-                    {currentOffer.delivery.observations && <p className="text-xs text-muted-foreground">{currentOffer.delivery.observations}</p>}
-                  </div>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-2">
-                <Button
-                  className="flex-1 h-12 font-bold text-base"
-                  onClick={() => handleAccept(currentOffer.delivery_id)}
-                  disabled={actionLoading}
-                >
-                  {actionLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                  <Truck className="h-4 w-4 mr-2" />
-                  Aceitar
-                </Button>
-                <Button
-                  variant="destructive"
-                  className="h-12 px-6 font-bold"
-                  onClick={handleRejectOffer}
-                  disabled={rejectingOffer}
-                >
-                  {rejectingOffer ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-5 w-5" />}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <QueueOfferCard
+            deliveryId={currentOffer.delivery_id}
+            delivery={currentOffer.delivery}
+            offerTimer={offerTimer}
+            actionLoading={actionLoading}
+            rejectingOffer={rejectingOffer}
+            onAccept={handleAccept}
+            onReject={handleRejectOffer}
+          />
         )}
 
-        {/* Blocked state */}
-        {!activeDelivery && isOnline && deliveryMode === 'queue' && blockedUntil && new Date(blockedUntil).getTime() > Date.now() && (
+        {!activeDelivery && isOnline && deliveryMode === 'queue' && isBlocked && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <div className="h-20 w-20 rounded-full bg-destructive/10 flex items-center justify-center mb-4">
               <Ban className="h-10 w-10 text-destructive" />
@@ -699,83 +476,22 @@ const DriverHome = () => {
           </div>
         )}
 
-        {!activeDelivery && isOnline && deliveryMode === 'queue' && !currentOffer && (!blockedUntil || new Date(blockedUntil).getTime() <= Date.now()) && driverId && (
-          <DriverQueueVisual driverId={driverId} isOnline={isOnline} />
+        {!activeDelivery && isOnline && deliveryMode === 'queue' && !currentOffer && !isBlocked && driverId && (
+          <DriverQueueVisual
+            position={queuePosition}
+            totalDrivers={totalOnlineDrivers}
+            searchingCount={searchingCount}
+          />
         )}
 
-        {/* Pool mode */}
         {!activeDelivery && isOnline && deliveryMode === 'pool' && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold text-lg">Corridas Disponíveis</h2>
-              <Badge variant="secondary">{availableDeliveries.length}</Badge>
-            </div>
-            {availableDeliveries.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="relative mb-4">
-                  <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Radio className="h-10 w-10 text-primary" />
-                  </div>
-                  <div className="absolute inset-0 h-20 w-20 rounded-full bg-primary/10 animate-ping" />
-                </div>
-                <p className="font-semibold text-lg">Buscando corridas...</p>
-                <p className="text-sm text-muted-foreground mt-1">Novas corridas aparecerão automaticamente</p>
-              </div>
-            ) : (
-              availableDeliveries.map((d) => (
-                <Card key={d.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                  <CardContent className="p-0">
-                    <div className="flex items-center justify-between px-4 py-3 bg-muted/50">
-                      <span className="text-xl font-bold text-primary flex items-center gap-1">
-                        <DollarSign className="h-5 w-5" />
-                        R$ {Number(d.delivery_fee).toFixed(2)}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">{timeSince(d.created_at)}</span>
-                      </div>
-                    </div>
-                    <div className="px-4 py-3 space-y-2">
-                      <div className="relative pl-6 space-y-3">
-                        <div className="absolute left-[11px] top-2 bottom-2 w-0.5 border-l-2 border-dashed border-muted-foreground/30" />
-                        <div className="relative flex items-start gap-2">
-                          <div className="absolute -left-6 top-0.5 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                            <Store className="h-3 w-3 text-primary-foreground" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">{d.establishment_name}</p>
-                            <p className="text-xs text-muted-foreground truncate max-w-[240px]">{d.establishment_address}</p>
-                          </div>
-                        </div>
-                        <div className="relative flex items-start gap-2">
-                          <div className="absolute -left-6 top-0.5 h-5 w-5 rounded-full bg-green-500 flex items-center justify-center">
-                            <MapPin className="h-3 w-3 text-white" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium truncate max-w-[240px]">{d.delivery_address}</p>
-                            {d.observations && <p className="text-xs text-muted-foreground">{d.observations}</p>}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="px-4 pb-3">
-                      <Button
-                        className="w-full h-11 font-bold"
-                        onClick={() => handleAccept(d.id)}
-                        disabled={actionLoading}
-                      >
-                        {actionLoading && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                        <Truck className="h-4 w-4 mr-2" />
-                        Aceitar Corrida
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
+          <PoolDeliveriesList
+            deliveries={availableDeliveries}
+            actionLoading={actionLoading}
+            onAccept={handleAccept}
+          />
         )}
 
-        {/* Offline state */}
         {!activeDelivery && !isOnline && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="h-24 w-24 rounded-full bg-muted flex items-center justify-center mb-6">
@@ -787,7 +503,6 @@ const DriverHome = () => {
         )}
       </div>
 
-      {/* Chat Dialog */}
       {activeDelivery && (
         <ChatDialog
           deliveryId={activeDelivery.id}
