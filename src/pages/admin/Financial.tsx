@@ -267,14 +267,14 @@ const AdminFinancial = () => {
   const pendingCount = useMemo(() => filtered.filter(r => r.status === 'pending').length, [filtered]);
 
   const pieData = useMemo(() => {
-    const estPayout = estReports.reduce((s, r) => s + r.net_payout, 0);
-    const driverPayout = driverReports.reduce((s, r) => s + r.net_payout, 0);
+    const estPayout = estGroups.reduce((s, g) => s + g.net_payout, 0);
+    const driverPayout = driverGroups.reduce((s, g) => s + g.net_payout, 0);
     return [
       { name: 'Plataforma', value: Number(totals.fee.toFixed(2)) },
       { name: 'Entregadores', value: Number(driverPayout.toFixed(2)) },
       { name: 'Estabelecimentos', value: Number(estPayout.toFixed(2)) },
     ].filter(d => d.value > 0);
-  }, [totals, estReports, driverReports]);
+  }, [totals, estGroups, driverGroups]);
 
   const chartData = useMemo(() => {
     const map = new Map<string, { semana: string; receita: number; taxa: number }>();
