@@ -18,6 +18,8 @@ interface DeliveryRow {
   created_at: string;
   accepted_at: string | null;
   delivered_at: string | null;
+  driver_id: string | null;
+  driver_name?: string;
 }
 
 const statusLabel: Record<string, string> = {
