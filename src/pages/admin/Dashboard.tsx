@@ -54,10 +54,10 @@ const AdminDashboard = () => {
       supabase.from('drivers').select('id', { count: 'exact' }).eq('is_online', true),
       supabase.from('establishments').select('id', { count: 'exact' }),
       supabase.from('deliveries')
-        .select('id, customer_name, delivery_address, delivery_fee, status, created_at, accepted_at, delivered_at')
+        .select('id, customer_name, delivery_address, delivery_fee, status, created_at, accepted_at, delivered_at, driver_id, drivers!deliveries_driver_id_fkey(user_id)')
         .order('created_at', { ascending: false }).limit(8),
       supabase.from('deliveries')
-        .select('id, customer_name, delivery_address, delivery_fee, status, created_at, accepted_at, delivered_at')
+        .select('id, customer_name, delivery_address, delivery_fee, status, created_at, accepted_at, delivered_at, driver_id, drivers!deliveries_driver_id_fkey(user_id)')
         .in('status', ['searching', 'accepted', 'collecting', 'delivering'])
         .order('created_at', { ascending: false }),
       supabase.from('profiles').select('id', { count: 'exact' }).eq('status', 'pending'),
