@@ -61,7 +61,7 @@ const DriverHome = () => {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      supabase.from('drivers').select('id, is_online, blocked_until').eq('user_id', user.id).maybeSingle(),
+      supabase.from('drivers').select('id, is_online, blocked_until, queue_joined_at').eq('user_id', user.id).maybeSingle(),
       supabase.from('app_settings').select('value').eq('key', 'delivery_mode').maybeSingle(),
     ]).then(async ([{ data: driverData }, { data: modeData }]) => {
       const mode = (modeData?.value as 'pool' | 'queue') ?? 'pool';
