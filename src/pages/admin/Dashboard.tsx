@@ -111,8 +111,26 @@ const AdminDashboard = () => {
       });
     }
     setChartData(days);
-    setRecentDeliveries((recent.data ?? []) as DeliveryRow[]);
-    setActiveDeliveries((active.data ?? []) as DeliveryRow[]);
+    // Resolve driver names from profiles
+    const recentRaw = (recent.data ?? []) as any[];
+    const activeRaw = (active.data ?? []) as any[];
+    const allRaw = [...recentRaw, ...activeRaw];
+    const driverUserIds = [...new Set(allRaw.map(d => d.drivers?.user_id).filter(Boolean))];
+    
+    let driverNameMap: Record<string, string> = {};
+    if (driverUserIds.length > 0) {
+      const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', driverUserIds);
+      (profiles ?? []).forEach(p => { driverNameMap[p.user_id] = p.full_name; });
+    }
+
+    const mapDriverName = (d: any): DeliveryRow => ({
+      ...d,
+      driver_name: d.drivers?.user_id ? driverNameMap[d.drivers.user_id] : undefined,
+      drivers: undefined,
+    });
+
+    setRecentDeliveries(recentRaw.map(mapDriverName));
+    setActiveDeliveries(activeRaw.map(mapDriverName));
     setLoading(false);
   }, []);
 
