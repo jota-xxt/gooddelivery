@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DollarSign, Truck, Calendar, TrendingUp, TrendingDown, Receipt, PieChart as PieChartIcon } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import QuickStats from '@/components/QuickStats';
