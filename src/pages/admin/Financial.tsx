@@ -70,6 +70,7 @@ const AdminFinancial = () => {
   const [feePercent, setFeePercent] = useState(10);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [expandedEntity, setExpandedEntity] = useState<string | null>(null);
   const [reportDateStart, setReportDateStart] = useState('');
   const [reportDateEnd, setReportDateEnd] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
