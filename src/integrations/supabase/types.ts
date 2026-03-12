@@ -195,6 +195,7 @@ export type Database = {
           id: string
           is_online: boolean
           phone: string
+          pix_key: string | null
           plate: string | null
           queue_joined_at: string | null
           updated_at: string
@@ -208,6 +209,7 @@ export type Database = {
           id?: string
           is_online?: boolean
           phone: string
+          pix_key?: string | null
           plate?: string | null
           queue_joined_at?: string | null
           updated_at?: string
@@ -221,6 +223,7 @@ export type Database = {
           id?: string
           is_online?: boolean
           phone?: string
+          pix_key?: string | null
           plate?: string | null
           queue_joined_at?: string | null
           updated_at?: string
