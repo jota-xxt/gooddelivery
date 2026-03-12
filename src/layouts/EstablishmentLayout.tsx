@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import BottomNav from '@/components/BottomNav';
+import ErrorBoundary from '@/components/ErrorBoundary';
 import { Package, Clock, DollarSign, User } from 'lucide-react';
 
 const items = [
@@ -12,7 +13,9 @@ const items = [
 const EstablishmentLayout = () => {
   return (
     <div className="min-h-screen pb-20">
-      <Outlet />
+      <ErrorBoundary>
+        <Outlet />
+      </ErrorBoundary>
       <BottomNav items={items} />
     </div>
   );

@@ -68,6 +68,22 @@ const Login = () => {
             <Button type="submit" className="w-full font-semibold" disabled={submitting}>
               {submitting ? 'Entrando...' : 'Entrar'}
             </Button>
+            <div className="text-center">
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-primary hover:underline transition-colors"
+                onClick={async () => {
+                  if (!email) { toast.error('Digite seu email primeiro'); return; }
+                  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                    redirectTo: `${window.location.origin}/reset-password`,
+                  });
+                  if (error) toast.error(error.message);
+                  else toast.success('Email de recuperação enviado! Verifique sua caixa de entrada.');
+                }}
+              >
+                Esqueci minha senha
+              </button>
+            </div>
           </form>
           <div className="mt-6 text-center text-sm text-muted-foreground">
             Não tem uma conta?{' '}

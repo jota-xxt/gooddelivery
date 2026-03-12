@@ -13,7 +13,9 @@ interface QuickStatsProps {
 
 const QuickStats = ({ stats }: QuickStatsProps) => {
   return (
-    <div className={`grid grid-cols-${Math.min(stats.length, 4)} gap-3`}>
+    <div className={`grid gap-3 ${
+      { 1: 'grid-cols-1', 2: 'grid-cols-2', 3: 'grid-cols-3', 4: 'grid-cols-2 sm:grid-cols-4' }[Math.min(stats.length, 4)] ?? 'grid-cols-2 sm:grid-cols-4'
+    }`}>
       {stats.map((stat, i) => {
         const Icon = stat.icon;
         return (

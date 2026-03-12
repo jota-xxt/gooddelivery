@@ -165,16 +165,6 @@ const AdminMapOverview = () => {
 
   const filteredDeliveries = useMemo(() => deliveries.filter(d => statusFilters.has(d.status)), [deliveries, statusFilters]);
 
-  const markers = useMemo(() => {
-    const filtered = new Set(filteredDeliveries.map(d => d.id));
-    return allMarkers.filter((_, i) => {
-      // markers are added in pairs per delivery (establishment + destination)
-      // simpler: rebuild from filtered deliveries
-      return true;
-    });
-  }, [allMarkers, filteredDeliveries]);
-
-  // Actually rebuild markers from filtered deliveries
   const filteredMarkers = useMemo(() => {
     const m: MapMarker[] = [];
     filteredDeliveries.forEach(d => {
