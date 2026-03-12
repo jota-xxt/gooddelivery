@@ -93,7 +93,7 @@ const DriverHome = () => {
         setBlockCountdown(null);
         // Clear blocked_until in DB
         if (driverId) {
-          supabase.from('drivers').update({ blocked_until: null } as any).eq('id', driverId).then(() => {});
+          supabase.from('drivers').update({ blocked_until: null }).eq('id', driverId).then(() => {});
         }
         return;
       }
