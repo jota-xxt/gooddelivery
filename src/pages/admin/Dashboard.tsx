@@ -251,7 +251,7 @@ const AdminDashboard = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground">
-                  <th className="text-left p-3 font-medium">Cliente</th>
+                  <th className="text-left p-3 font-medium">Entregador</th>
                   <th className="text-left p-3 font-medium hidden md:table-cell">Endereço</th>
                   <th className="text-right p-3 font-medium">Valor</th>
                   <th className="text-center p-3 font-medium">Status</th>
