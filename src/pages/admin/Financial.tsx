@@ -573,12 +573,8 @@ const AdminFinancial = () => {
             <Receipt className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
             <p className="text-sm font-medium">Nenhum relatório semanal</p>
             <p className="text-xs text-muted-foreground mt-1 mb-4">
-              Clique em "Gerar Relatório" para consolidar as entregas da última semana.
+              Clique em "Gerar Relatório" acima para consolidar as entregas de um período.
             </p>
-            <Button size="sm" onClick={generateReport} disabled={generating} className="gap-1.5">
-              <RefreshCw className={`h-3.5 w-3.5 ${generating ? 'animate-spin' : ''}`} />
-              Gerar Agora
-            </Button>
           </CardContent>
         </Card>
       )}
