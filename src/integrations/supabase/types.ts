@@ -275,6 +275,7 @@ export type Database = {
         Row: {
           created_at: string
           entity_id: string
+          entity_name: string
           entity_type: Database["public"]["Enums"]["financial_entity_type"]
           id: string
           net_payout: number
@@ -289,6 +290,7 @@ export type Database = {
         Insert: {
           created_at?: string
           entity_id: string
+          entity_name?: string
           entity_type: Database["public"]["Enums"]["financial_entity_type"]
           id?: string
           net_payout?: number
@@ -303,6 +305,7 @@ export type Database = {
         Update: {
           created_at?: string
           entity_id?: string
+          entity_name?: string
           entity_type?: Database["public"]["Enums"]["financial_entity_type"]
           id?: string
           net_payout?: number

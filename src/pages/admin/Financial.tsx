@@ -71,9 +71,12 @@ const AdminFinancial = () => {
     const { data: settings } = await supabase.from('app_settings').select('value').eq('key', 'platform_fee_percentage').maybeSingle();
     setFeePercent(Number(settings?.value ?? 10));
 
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
     const { data: deliveries } = await supabase
       .from('deliveries')
       .select('id, delivery_fee, status, delivered_at, created_at')
+      .gte('created_at', ninetyDaysAgo.toISOString())
       .order('created_at', { ascending: false });
 
     if (!deliveries) return;
@@ -154,7 +157,7 @@ const AdminFinancial = () => {
     const estMap = new Map<string, string>(ests?.map((e: any) => [e.id, e.business_name] as [string, string]) ?? []);
     setReports(rawReports.map(r => ({
       ...r,
-      entity_name: r.entity_type === 'establishment' ? (estMap.get(r.entity_id) ?? 'Desconhecido') : (driverNames[r.entity_id] ?? 'Desconhecido'),
+      entity_name: (r as any).entity_name || (r.entity_type === 'establishment' ? (estMap.get(r.entity_id) ?? 'Desconhecido') : (driverNames[r.entity_id] ?? 'Desconhecido')),
     })));
   };
 
