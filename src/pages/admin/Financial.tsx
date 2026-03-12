@@ -162,22 +162,28 @@ const AdminFinancial = () => {
 
     const [{ data: ests }, { data: drivers }] = await Promise.all([
       estIds.length > 0 ? supabase.from('establishments').select('id, business_name').in('id', estIds) : Promise.resolve({ data: [] as any[] }),
-      driverIds.length > 0 ? supabase.from('drivers').select('id, user_id').in('id', driverIds) : Promise.resolve({ data: [] as any[] }),
+      driverIds.length > 0 ? supabase.from('drivers').select('id, user_id, pix_key').in('id', driverIds) : Promise.resolve({ data: [] as any[] }),
     ]);
 
     let driverNames: Record<string, string> = {};
+    const driverPixKeys: Record<string, string | null> = {};
     if (drivers && drivers.length > 0) {
       const userIds = drivers.map((d: any) => d.user_id);
       const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
       const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) ?? []);
-      for (const d of drivers) { driverNames[d.id] = profileMap.get(d.user_id) ?? 'Entregador'; }
+      for (const d of drivers) {
+        driverNames[d.id] = profileMap.get(d.user_id) ?? 'Entregador';
+        driverPixKeys[d.id] = (d as any).pix_key ?? null;
+      }
     }
 
     const estMap = new Map<string, string>(ests?.map((e: any) => [e.id, e.business_name] as [string, string]) ?? []);
-    setReports(rawReports.map(r => ({
+    const enrichedReports = rawReports.map(r => ({
       ...r,
       entity_name: (r as any).entity_name || (r.entity_type === 'establishment' ? (estMap.get(r.entity_id) ?? 'Desconhecido') : (driverNames[r.entity_id] ?? 'Desconhecido')),
-    })));
+      pix_key: r.entity_type === 'driver' ? driverPixKeys[r.entity_id] : null,
+    }));
+    setReports(enrichedReports);
   };
 
   const generateReport = async () => {
