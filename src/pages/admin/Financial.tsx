@@ -221,8 +221,39 @@ const AdminFinancial = () => {
     return result;
   }, [reports, selectedWeek, entitySearch]);
 
-  const estReports = filtered.filter(r => r.entity_type === 'establishment');
-  const driverReports = filtered.filter(r => r.entity_type === 'driver');
+  const groupByEntity = useCallback((items: WeeklyReport[]): GroupedEntity[] => {
+    const map = new Map<string, GroupedEntity>();
+    items.forEach(r => {
+      const existing = map.get(r.entity_id);
+      if (existing) {
+        existing.total_deliveries += r.total_deliveries;
+        existing.total_value += r.total_value;
+        existing.platform_fee += r.platform_fee;
+        existing.net_payout += r.net_payout;
+        existing.reports.push(r);
+        if (r.status === 'pending') existing.pendingIds.push(r.id);
+        if (r.status !== 'paid') existing.allPaid = false;
+      } else {
+        map.set(r.entity_id, {
+          entity_id: r.entity_id,
+          entity_name: r.entity_name ?? 'Desconhecido',
+          entity_type: r.entity_type,
+          total_deliveries: r.total_deliveries,
+          total_value: r.total_value,
+          platform_fee: r.platform_fee,
+          net_payout: r.net_payout,
+          pix_key: r.pix_key,
+          reports: [r],
+          allPaid: r.status === 'paid',
+          pendingIds: r.status === 'pending' ? [r.id] : [],
+        });
+      }
+    });
+    return [...map.values()].sort((a, b) => b.net_payout - a.net_payout);
+  }, []);
+
+  const estGroups = useMemo(() => groupByEntity(filtered.filter(r => r.entity_type === 'establishment')), [filtered, groupByEntity]);
+  const driverGroups = useMemo(() => groupByEntity(filtered.filter(r => r.entity_type === 'driver')), [filtered, groupByEntity]);
 
   const totals = useMemo(() =>
     filtered.reduce((a, r) => ({
