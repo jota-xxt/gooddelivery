@@ -44,13 +44,16 @@ Deno.serve(async (req) => {
       });
     }
 
+    const now = new Date();
+    const expireCutoff = new Date(now.getTime() - 60000).toISOString();
+
     // Expire any pending offers older than 60s for this delivery
     await supabaseAdmin
       .from("delivery_offers")
-      .update({ status: "expired", responded_at: new Date().toISOString() })
+      .update({ status: "expired", responded_at: now.toISOString() })
       .eq("delivery_id", delivery_id)
       .eq("status", "pending")
-      .lt("offered_at", new Date(Date.now() - 60000).toISOString());
+      .lt("offered_at", expireCutoff);
 
     // Check if there's already a pending (non-expired) offer for this delivery
     const { data: existingOffer } = await supabaseAdmin
@@ -61,17 +64,15 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (existingOffer) {
-      // Still has a valid pending offer
-      const offerAge = Date.now() - new Date(existingOffer.offered_at).getTime();
+      const offerAge = now.getTime() - new Date(existingOffer.offered_at).getTime();
       if (offerAge < 60000) {
         return new Response(JSON.stringify({ skipped: true, reason: "active offer exists" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      // Expire it
       await supabaseAdmin
         .from("delivery_offers")
-        .update({ status: "expired", responded_at: new Date().toISOString() })
+        .update({ status: "expired", responded_at: now.toISOString() })
         .eq("id", existingOffer.id);
     }
 
@@ -84,15 +85,14 @@ Deno.serve(async (req) => {
 
     const excludedDriverIds = previousOffers?.map(o => o.driver_id) ?? [];
 
-    // Find next driver in queue: online, no active delivery, not already offered, ordered by queue_joined_at
-    let query = supabaseAdmin
+    // Single optimized query: get online drivers without active deliveries and not blocked
+    const nowIso = now.toISOString();
+    const { data: onlineDrivers } = await supabaseAdmin
       .from("drivers")
-      .select("id")
+      .select("id, user_id, phone, blocked_until")
       .eq("is_online", true)
       .not("queue_joined_at", "is", null)
       .order("queue_joined_at", { ascending: true });
-
-    const { data: onlineDrivers } = await query;
 
     if (!onlineDrivers || onlineDrivers.length === 0) {
       return new Response(JSON.stringify({ skipped: true, reason: "no online drivers" }), {
@@ -100,37 +100,33 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Filter out excluded drivers, blocked drivers, and those with active deliveries
-    let selectedDriverId: string | null = null;
-    const now = new Date().toISOString();
+    // Filter out excluded and blocked drivers
+    const candidateDrivers = onlineDrivers.filter(d => {
+      if (excludedDriverIds.includes(d.id)) return false;
+      if (d.blocked_until && d.blocked_until > nowIso) return false;
+      return true;
+    });
 
-    for (const driver of onlineDrivers) {
-      if (excludedDriverIds.includes(driver.id)) continue;
-
-      // Check if driver is blocked
-      const { data: driverData } = await supabaseAdmin
-        .from("drivers")
-        .select("blocked_until")
-        .eq("id", driver.id)
-        .single();
-
-      if (driverData?.blocked_until && driverData.blocked_until > now) continue;
-
-      // Check if driver has active delivery
-      const { data: activeDeliveries } = await supabaseAdmin
-        .from("deliveries")
-        .select("id")
-        .eq("driver_id", driver.id)
-        .in("status", ["accepted", "collecting", "delivering"])
-        .limit(1);
-
-      if (!activeDeliveries || activeDeliveries.length === 0) {
-        selectedDriverId = driver.id;
-        break;
-      }
+    if (candidateDrivers.length === 0) {
+      return new Response(JSON.stringify({ skipped: true, reason: "no available drivers" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    if (!selectedDriverId) {
+    // Batch check: get all candidate driver IDs that have active deliveries
+    const candidateIds = candidateDrivers.map(d => d.id);
+    const { data: busyDeliveries } = await supabaseAdmin
+      .from("deliveries")
+      .select("driver_id")
+      .in("driver_id", candidateIds)
+      .in("status", ["accepted", "collecting", "delivering"]);
+
+    const busyDriverIds = new Set(busyDeliveries?.map(d => d.driver_id) ?? []);
+
+    // Pick first available driver (already sorted by queue_joined_at)
+    const selectedDriver = candidateDrivers.find(d => !busyDriverIds.has(d.id));
+
+    if (!selectedDriver) {
       return new Response(JSON.stringify({ skipped: true, reason: "no available drivers" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -141,7 +137,7 @@ Deno.serve(async (req) => {
       .from("delivery_offers")
       .insert({
         delivery_id,
-        driver_id: selectedDriverId,
+        driver_id: selectedDriver.id,
         status: "pending",
       });
 
@@ -155,53 +151,43 @@ Deno.serve(async (req) => {
       .single();
 
     // Notify the driver
-    const { data: driverData } = await supabaseAdmin
-      .from("drivers")
-      .select("user_id, phone")
-      .eq("id", selectedDriverId)
-      .single();
+    await supabaseAdmin.from("notifications").insert({
+      user_id: selectedDriver.user_id,
+      title: "Nova corrida para você!",
+      message: "Você recebeu uma oferta de corrida. Aceite em até 60 segundos!",
+    });
 
-    if (driverData) {
-      // Internal notification
-      await supabaseAdmin.from("notifications").insert({
-        user_id: driverData.user_id,
-        title: "Nova corrida para você!",
-        message: "Você recebeu uma oferta de corrida. Aceite em até 60 segundos!",
-      });
+    // WhatsApp notification (fire and forget)
+    if (selectedDriver.phone && deliveryDetails) {
+      const cleanPhone = selectedDriver.phone.replace(/\D/g, '');
+      const whatsappPhone = cleanPhone.length === 11 ? `55${cleanPhone}` : cleanPhone;
 
-      // WhatsApp notification
-      if (driverData.phone && deliveryDetails) {
-        const cleanPhone = driverData.phone.replace(/\D/g, '');
-        const whatsappPhone = cleanPhone.length === 11 ? `55${cleanPhone}` : cleanPhone;
-        
-        // Get driver name
-        const { data: profile } = await supabaseAdmin
-          .from("profiles")
-          .select("full_name")
-          .eq("user_id", driverData.user_id)
-          .single();
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", selectedDriver.user_id)
+        .single();
 
-        const sendWhatsAppUrl = Deno.env.get("SUPABASE_URL")! + "/functions/v1/send-whatsapp";
-        fetch(sendWhatsAppUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      const sendWhatsAppUrl = Deno.env.get("SUPABASE_URL")! + "/functions/v1/send-whatsapp";
+      fetch(sendWhatsAppUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({
+          phone: whatsappPhone,
+          template: "new_delivery_offer",
+          vars: {
+            name: profile?.full_name ?? "Entregador",
+            address: deliveryDetails.delivery_address,
+            fee: Number(deliveryDetails.delivery_fee).toFixed(2),
           },
-          body: JSON.stringify({
-            phone: whatsappPhone,
-            template: "new_delivery_offer",
-            vars: {
-              name: profile?.full_name ?? "Entregador",
-              address: deliveryDetails.delivery_address,
-              fee: Number(deliveryDetails.delivery_fee).toFixed(2),
-            },
-          }),
-        }).catch(() => {});
-      }
+        }),
+      }).catch(() => {});
     }
 
-    return new Response(JSON.stringify({ success: true, driver_id: selectedDriverId }), {
+    return new Response(JSON.stringify({ success: true, driver_id: selectedDriver.id }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {

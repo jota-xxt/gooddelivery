@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import RoleGuard from "@/components/RoleGuard";
+import { lazy, Suspense } from "react";
 
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -13,40 +14,47 @@ import NotFound from "./pages/NotFound";
 import Install from "./pages/Install";
 import LandingPage from "./pages/LandingPage";
 
-import AdminLayout from "./layouts/AdminLayout";
-import AdminDashboard from "./pages/admin/Dashboard";
-import AdminApprovals from "./pages/admin/Approvals";
-import AdminUsers from "./pages/admin/Users";
-import AdminFinancial from "./pages/admin/Financial";
-import AdminSettings from "./pages/admin/Settings";
-import AdminDeliveries from "./pages/admin/Deliveries";
+// Lazy-loaded layouts and pages
+const AdminLayout = lazy(() => import("./layouts/AdminLayout"));
+const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
+const AdminApprovals = lazy(() => import("./pages/admin/Approvals"));
+const AdminUsers = lazy(() => import("./pages/admin/Users"));
+const AdminFinancial = lazy(() => import("./pages/admin/Financial"));
+const AdminSettings = lazy(() => import("./pages/admin/Settings"));
+const AdminDeliveries = lazy(() => import("./pages/admin/Deliveries"));
+const AdminMapOverview = lazy(() => import("./pages/admin/MapOverview"));
 
-import AdminMapOverview from "./pages/admin/MapOverview";
+const DriverLayout = lazy(() => import("./layouts/DriverLayout"));
+const DriverHome = lazy(() => import("./pages/driver/Home"));
+const DriverHistory = lazy(() => import("./pages/driver/History"));
+const DriverEarnings = lazy(() => import("./pages/driver/Earnings"));
+const DriverProfile = lazy(() => import("./pages/driver/Profile"));
 
-import DriverLayout from "./layouts/DriverLayout";
-import DriverHome from "./pages/driver/Home";
-import DriverHistory from "./pages/driver/History";
-import DriverEarnings from "./pages/driver/Earnings";
-import DriverProfile from "./pages/driver/Profile";
+const EstablishmentLayout = lazy(() => import("./layouts/EstablishmentLayout"));
+const EstablishmentOrders = lazy(() => import("./pages/establishment/Orders"));
+const EstablishmentHistory = lazy(() => import("./pages/establishment/History"));
+const EstablishmentFinancial = lazy(() => import("./pages/establishment/Financial"));
+const EstablishmentProfile = lazy(() => import("./pages/establishment/Profile"));
 
-import EstablishmentLayout from "./layouts/EstablishmentLayout";
-import EstablishmentOrders from "./pages/establishment/Orders";
-import EstablishmentHistory from "./pages/establishment/History";
-import EstablishmentFinancial from "./pages/establishment/Financial";
-import EstablishmentProfile from "./pages/establishment/Profile";
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      retry: 1,
+    },
+  },
+});
 
-const queryClient = new QueryClient();
+const LazyFallback = () => (
+  <div className="flex min-h-screen items-center justify-center">
+    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+  </div>
+);
 
 const ProtectedRoutes = () => {
   const { user, role, status, loading } = useAuth();
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    );
-  }
+  if (loading) return <LazyFallback />;
 
   if (!user) return <Navigate to="/login" replace />;
   if (status !== 'approved') return <Navigate to="/pending-approval" replace />;
@@ -65,52 +73,53 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/pending-approval" element={<PendingApproval />} />
-            <Route path="/install" element={<Install />} />
+          <Suspense fallback={<LazyFallback />}>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/pending-approval" element={<PendingApproval />} />
+              <Route path="/install" element={<Install />} />
 
-            <Route path="/admin" element={
-              <RoleGuard allowedRoles={['admin']}>
-                <AdminLayout />
-              </RoleGuard>
-            }>
-              <Route index element={<AdminDashboard />} />
-              <Route path="deliveries" element={<AdminDeliveries />} />
-              <Route path="approvals" element={<AdminApprovals />} />
-              <Route path="users" element={<AdminUsers />} />
-              <Route path="financial" element={<AdminFinancial />} />
-              <Route path="settings" element={<AdminSettings />} />
-              
-              <Route path="map" element={<AdminMapOverview />} />
-            </Route>
+              <Route path="/admin" element={
+                <RoleGuard allowedRoles={['admin']}>
+                  <AdminLayout />
+                </RoleGuard>
+              }>
+                <Route index element={<AdminDashboard />} />
+                <Route path="deliveries" element={<AdminDeliveries />} />
+                <Route path="approvals" element={<AdminApprovals />} />
+                <Route path="users" element={<AdminUsers />} />
+                <Route path="financial" element={<AdminFinancial />} />
+                <Route path="settings" element={<AdminSettings />} />
+                <Route path="map" element={<AdminMapOverview />} />
+              </Route>
 
-            <Route path="/driver" element={
-              <RoleGuard allowedRoles={['driver']}>
-                <DriverLayout />
-              </RoleGuard>
-            }>
-              <Route index element={<DriverHome />} />
-              <Route path="history" element={<DriverHistory />} />
-              <Route path="earnings" element={<DriverEarnings />} />
-              <Route path="profile" element={<DriverProfile />} />
-            </Route>
+              <Route path="/driver" element={
+                <RoleGuard allowedRoles={['driver']}>
+                  <DriverLayout />
+                </RoleGuard>
+              }>
+                <Route index element={<DriverHome />} />
+                <Route path="history" element={<DriverHistory />} />
+                <Route path="earnings" element={<DriverEarnings />} />
+                <Route path="profile" element={<DriverProfile />} />
+              </Route>
 
-            <Route path="/establishment" element={
-              <RoleGuard allowedRoles={['establishment']}>
-                <EstablishmentLayout />
-              </RoleGuard>
-            }>
-              <Route index element={<EstablishmentOrders />} />
-              <Route path="history" element={<EstablishmentHistory />} />
-              <Route path="financial" element={<EstablishmentFinancial />} />
-              <Route path="profile" element={<EstablishmentProfile />} />
-            </Route>
+              <Route path="/establishment" element={
+                <RoleGuard allowedRoles={['establishment']}>
+                  <EstablishmentLayout />
+                </RoleGuard>
+              }>
+                <Route index element={<EstablishmentOrders />} />
+                <Route path="history" element={<EstablishmentHistory />} />
+                <Route path="financial" element={<EstablishmentFinancial />} />
+                <Route path="profile" element={<EstablishmentProfile />} />
+              </Route>
 
-            <Route path="/" element={<LandingPage />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

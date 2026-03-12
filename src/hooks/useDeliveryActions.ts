@@ -13,12 +13,28 @@ export const useDeliveryActions = () => {
       });
 
       if (error) {
-        toast.error('Erro de conexão. Tente novamente.');
+        // Check for specific HTTP status in the error context
+        const msg = (error as any)?.context?.status;
+        if (msg === 409) {
+          toast.error('Esta entrega já foi aceita por outro entregador.');
+        } else if (msg === 410) {
+          toast.error('Oferta expirada. Aguarde a próxima.');
+        } else {
+          toast.error('Erro de conexão. Tente novamente.');
+        }
         return false;
       }
 
       if (data?.error) {
-        toast.error(data.error);
+        // Map known backend error messages
+        const errMsg: string = data.error;
+        if (errMsg.includes('already accepted') || errMsg.includes('not searching')) {
+          toast.error('Esta entrega já foi aceita por outro entregador.');
+        } else if (errMsg.includes('expired')) {
+          toast.error('Oferta expirada. Aguarde a próxima.');
+        } else {
+          toast.error(errMsg);
+        }
         return false;
       }
 
