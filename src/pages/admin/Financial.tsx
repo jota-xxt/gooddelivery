@@ -71,9 +71,12 @@ const AdminFinancial = () => {
     const { data: settings } = await supabase.from('app_settings').select('value').eq('key', 'platform_fee_percentage').maybeSingle();
     setFeePercent(Number(settings?.value ?? 10));
 
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
     const { data: deliveries } = await supabase
       .from('deliveries')
       .select('id, delivery_fee, status, delivered_at, created_at')
+      .gte('created_at', ninetyDaysAgo.toISOString())
       .order('created_at', { ascending: false });
 
     if (!deliveries) return;
