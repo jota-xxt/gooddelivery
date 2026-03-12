@@ -765,7 +765,7 @@ const GroupedTable = ({ groups, type, expandedEntity, setExpandedEntity, markAsP
                     </TableCell>
                   </TableRow>
                 ))}
-              </>
+              </React.Fragment>
             ))}
             {groups.length === 0 && (
               <TableRow><TableCell colSpan={type === 'driver' ? 8 : 7} className="text-center text-muted-foreground py-8 text-xs">Nenhum relatório</TableCell></TableRow>
