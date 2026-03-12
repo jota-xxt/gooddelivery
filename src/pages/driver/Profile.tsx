@@ -62,7 +62,7 @@ const DriverProfile = () => {
   const savePixKey = async () => {
     if (!driver) return;
     setSavingPix(true);
-    const { error } = await supabase.from('drivers').update({ pix_key: pixKey.trim() || null } as any).eq('id', driver.id);
+    const { error } = await supabase.from('drivers').update({ pix_key: pixKey.trim() || null }).eq('id', driver.id);
     setSavingPix(false);
     if (error) {
       toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
