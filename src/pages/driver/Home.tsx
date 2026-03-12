@@ -258,8 +258,8 @@ const DriverHome = () => {
         ...active,
         establishment_name: est?.business_name,
         establishment_address: est?.address,
-        establishment_lat: (est as any)?.latitude,
-        establishment_lng: (est as any)?.longitude,
+        establishment_lat: est?.latitude,
+        establishment_lng: est?.longitude,
       });
       setAvailableDeliveries([]);
       return;
