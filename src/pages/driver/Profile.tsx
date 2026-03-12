@@ -59,6 +59,27 @@ const DriverProfile = () => {
     setLoading(false);
   };
 
+  const savePixKey = async () => {
+    if (!driver) return;
+    setSavingPix(true);
+    const { error } = await supabase.from('drivers').update({ pix_key: pixKey.trim() || null } as any).eq('id', driver.id);
+    setSavingPix(false);
+    if (error) {
+      toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Chave PIX salva!' });
+      setDriver(prev => prev ? { ...prev, pix_key: pixKey.trim() || null } : prev);
+    }
+  };
+
+  const detectPixType = (key: string): string => {
+    if (!key) return '';
+    if (/^\d{11}$/.test(key.replace(/[.\-]/g, ''))) return 'CPF/Telefone';
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(key)) return 'E-mail';
+    if (/^[a-f0-9\-]{32,36}$/i.test(key)) return 'Aleatória';
+    return 'Chave PIX';
+  };
+
   const markAsRead = async (id: string) => {
     await supabase.from('notifications').update({ read: true }).eq('id', id);
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
