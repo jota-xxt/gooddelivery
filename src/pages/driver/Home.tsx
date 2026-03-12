@@ -364,7 +364,7 @@ const DriverHome = () => {
     }
     setTogglingOnline(true);
     const newStatus = !isOnline;
-    const updateData: Record<string, unknown> = { is_online: newStatus };
+    const updateData: { is_online: boolean; queue_joined_at?: string | null } = { is_online: newStatus };
     if (newStatus && deliveryMode === 'queue') {
       updateData.queue_joined_at = new Date().toISOString();
     }
