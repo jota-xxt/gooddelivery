@@ -35,6 +35,7 @@ const EstablishmentOrders = lazy(() => import("./pages/establishment/Orders"));
 const EstablishmentHistory = lazy(() => import("./pages/establishment/History"));
 const EstablishmentFinancial = lazy(() => import("./pages/establishment/Financial"));
 const EstablishmentProfile = lazy(() => import("./pages/establishment/Profile"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
