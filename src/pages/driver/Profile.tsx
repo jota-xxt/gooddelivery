@@ -4,13 +4,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import AvatarUpload from '@/components/AvatarUpload';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Star, Phone, CreditCard, Bike, Car, Truck, Calendar, Package, Bell, LogOut, QrCode, Save } from 'lucide-react';
+import { Phone, CreditCard, Bell, LogOut, QrCode, Save, Package, Star, Calendar, CheckCircle } from 'lucide-react';
 import { PushNotificationToggle } from '@/components/PushNotificationToggle';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, startOfWeek, subWeeks } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import QuickStats from '@/components/QuickStats';
+import ProfileHeader from '@/components/driver/ProfileHeader';
+import ProfileVehicleCard from '@/components/driver/ProfileVehicleCard';
+import ProfilePerformance from '@/components/driver/ProfilePerformance';
 
 const DriverProfile = () => {
   const { user, signOut } = useAuth();
@@ -22,6 +25,9 @@ const DriverProfile = () => {
   const [avgRating, setAvgRating] = useState<number | null>(null);
   const [ratingCount, setRatingCount] = useState(0);
   const [totalDeliveries, setTotalDeliveries] = useState(0);
+  const [acceptanceRate, setAcceptanceRate] = useState<number | null>(null);
+  const [thisWeekDeliveries, setThisWeekDeliveries] = useState(0);
+  const [lastWeekDeliveries, setLastWeekDeliveries] = useState(0);
   const [notifications, setNotifications] = useState<{ id: string; title: string; message: string; created_at: string; read: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -51,9 +57,34 @@ const DriverProfile = () => {
     }
 
     if (driverRes.data) {
-      const { count } = await supabase.from('deliveries').select('id', { count: 'exact', head: true })
+      // Total deliveries
+      const { count: totalCount } = await supabase.from('deliveries').select('id', { count: 'exact', head: true })
         .eq('driver_id', driverRes.data.id).eq('status', 'completed');
-      setTotalDeliveries(count ?? 0);
+      setTotalDeliveries(totalCount ?? 0);
+
+      // Acceptance rate from offers
+      const { data: offers } = await supabase.from('delivery_offers').select('status').eq('driver_id', driverRes.data.id);
+      if (offers && offers.length > 0) {
+        const accepted = offers.filter(o => o.status === 'accepted').length;
+        setAcceptanceRate(Math.round((accepted / offers.length) * 100));
+      }
+
+      // Weekly performance
+      const now = new Date();
+      const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+      const lastWeekStart = subWeeks(thisWeekStart, 1);
+
+      const [thisWeekRes, lastWeekRes] = await Promise.all([
+        supabase.from('deliveries').select('id', { count: 'exact', head: true })
+          .eq('driver_id', driverRes.data.id).eq('status', 'completed')
+          .gte('delivered_at', thisWeekStart.toISOString()),
+        supabase.from('deliveries').select('id', { count: 'exact', head: true })
+          .eq('driver_id', driverRes.data.id).eq('status', 'completed')
+          .gte('delivered_at', lastWeekStart.toISOString())
+          .lt('delivered_at', thisWeekStart.toISOString()),
+      ]);
+      setThisWeekDeliveries(thisWeekRes.count ?? 0);
+      setLastWeekDeliveries(lastWeekRes.count ?? 0);
     }
 
     setLoading(false);
@@ -85,73 +116,44 @@ const DriverProfile = () => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
-  const vehicleIcons: Record<string, React.ReactNode> = {
-    motorcycle: <Bike className="h-5 w-5" />,
-    bicycle: <Bike className="h-5 w-5" />,
-    car: <Car className="h-5 w-5" />,
-  };
-  const vehicleLabels: Record<string, string> = { motorcycle: 'Moto', bicycle: 'Bicicleta', car: 'Carro' };
-
   const initials = profile?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() ?? '?';
 
   if (loading) {
     return (
       <div className="p-4 space-y-4">
-        <div className="flex flex-col items-center gap-3">
-          <Skeleton className="h-20 w-20 rounded-full" />
-          <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-52 rounded-2xl" />
+        <div className="grid grid-cols-2 gap-3">
+          {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
-        {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 rounded-lg" />)}
+        {[1, 2].map(i => <Skeleton key={i} className="h-28 rounded-lg" />)}
       </div>
     );
   }
 
   return (
-    <div className="p-4 space-y-6 pb-24">
-      {/* Avatar and name */}
-      <div className="flex flex-col items-center pt-2">
-        <AvatarUpload
-          userId={user!.id}
-          currentUrl={profile?.avatar_url ?? null}
-          initials={initials}
-          onUploaded={(url) => setProfile(prev => prev ? { ...prev, avatar_url: url } : prev)}
-        />
-        <h1 className="text-xl font-bold mt-3">{profile?.full_name}</h1>
-        {avgRating !== null && (
-          <div className="flex items-center gap-1 mt-1">
-            {[1, 2, 3, 4, 5].map(i => (
-              <Star key={i} className={`h-4 w-4 ${i <= Math.round(avgRating) ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground/30'}`} />
-            ))}
-            <span className="text-sm font-semibold ml-1">{avgRating.toFixed(1)}</span>
-            <span className="text-xs text-muted-foreground">({ratingCount})</span>
-          </div>
-        )}
-      </div>
+    <div className="p-4 space-y-5 pb-24">
+      {/* Gradient header with avatar, name, rating, level */}
+      <ProfileHeader
+        userId={user!.id}
+        avatarUrl={profile?.avatar_url ?? null}
+        initials={initials}
+        fullName={profile?.full_name ?? ''}
+        avgRating={avgRating}
+        ratingCount={ratingCount}
+        totalDeliveries={totalDeliveries}
+        onAvatarUploaded={(url) => setProfile(prev => prev ? { ...prev, avatar_url: url } : prev)}
+      />
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        <Card>
-          <CardContent className="p-3 text-center">
-            <Package className="h-5 w-5 mx-auto text-primary mb-1" />
-            <p className="text-lg font-bold">{totalDeliveries}</p>
-            <p className="text-[10px] text-muted-foreground">Entregas</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <Star className="h-5 w-5 mx-auto text-yellow-500 mb-1" />
-            <p className="text-lg font-bold">{avgRating?.toFixed(1) ?? '-'}</p>
-            <p className="text-[10px] text-muted-foreground">Avaliação</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <Calendar className="h-5 w-5 mx-auto text-primary mb-1" />
-            <p className="text-lg font-bold">{profile?.created_at ? format(new Date(profile.created_at), 'MMM/yy', { locale: ptBR }) : '-'}</p>
-            <p className="text-[10px] text-muted-foreground">Membro</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Stats grid */}
+      <QuickStats stats={[
+        { label: 'Entregas', value: totalDeliveries, icon: Package, color: 'bg-primary/10 text-primary' },
+        { label: 'Avaliação', value: avgRating?.toFixed(1) ?? '-', icon: Star, color: 'bg-yellow-100 text-yellow-600' },
+        { label: 'Aceitação', value: acceptanceRate !== null ? `${acceptanceRate}%` : '-', icon: CheckCircle, color: 'bg-green-100 text-green-600' },
+        { label: 'Membro', value: profile?.created_at ? format(new Date(profile.created_at), 'MMM/yy', { locale: ptBR }) : '-', icon: Calendar, color: 'bg-blue-100 text-blue-600' },
+      ]} />
+
+      {/* Weekly performance */}
+      <ProfilePerformance thisWeek={thisWeekDeliveries} lastWeek={lastWeekDeliveries} />
 
       {/* Personal info */}
       <Card>
@@ -177,31 +179,9 @@ const DriverProfile = () => {
       </Card>
 
       {/* Vehicle */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Veículo</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-3">
-            {vehicleIcons[driver?.vehicle_type ?? ''] ?? <Truck className="h-4 w-4 text-muted-foreground" />}
-            <div>
-              <p className="text-xs text-muted-foreground">Tipo</p>
-              <p className="text-sm font-medium">{vehicleLabels[driver?.vehicle_type ?? ''] ?? '-'}</p>
-            </div>
-          </div>
-          {driver?.plate && (
-            <div className="flex items-center gap-3">
-              <CreditCard className="h-4 w-4 text-muted-foreground" />
-              <div>
-                <p className="text-xs text-muted-foreground">Placa</p>
-                <p className="text-sm font-medium">{driver.plate}</p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {driver && <ProfileVehicleCard vehicleType={driver.vehicle_type} plate={driver.plate} />}
 
-      {/* Chave PIX */}
+      {/* PIX Key */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -232,6 +212,7 @@ const DriverProfile = () => {
         </CardContent>
       </Card>
 
+      {/* Push notifications */}
       <Card>
         <CardContent className="py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -242,7 +223,7 @@ const DriverProfile = () => {
         </CardContent>
       </Card>
 
-      {/* Notifications */}
+      {/* Recent notifications */}
       {notifications.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
