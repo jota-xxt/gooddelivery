@@ -167,11 +167,22 @@ const AdminFinancial = () => {
   };
 
   const generateReport = async () => {
+    if (!reportDateStart || !reportDateEnd) {
+      toast({ title: 'Selecione as datas', description: 'Informe a data inicial e final do período.', variant: 'destructive' });
+      return;
+    }
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-weekly-report');
+      const { data, error } = await supabase.functions.invoke('generate-weekly-report', {
+        body: { date_start: reportDateStart, date_end: reportDateEnd },
+      });
       if (error) throw error;
-      toast({ title: 'Relatório gerado', description: data?.message || 'Relatórios semanais atualizados.' });
+      if (data?.error) {
+        toast({ title: 'Erro', description: data.error, variant: 'destructive' });
+      } else {
+        toast({ title: 'Relatório gerado', description: data?.message || 'Relatórios atualizados.' });
+      }
+      setDialogOpen(false);
       await loadReports();
     } catch (err: any) {
       toast({ title: 'Erro ao gerar relatório', description: err.message, variant: 'destructive' });
