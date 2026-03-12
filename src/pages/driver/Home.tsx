@@ -342,7 +342,7 @@ const DriverHome = () => {
           toast.info(newMode === 'queue' ? 'Modo alterado para Fila' : 'Modo alterado para Pool Aberto');
           // If switching to queue and driver is already online, set queue_joined_at
           if (newMode === 'queue' && isOnline && driverId) {
-            await supabase.from('drivers').update({ queue_joined_at: new Date().toISOString() } as any).eq('id', driverId);
+            await supabase.from('drivers').update({ queue_joined_at: new Date().toISOString() }).eq('id', driverId);
           }
           // If switching to pool, clear queue_joined_at
           if (newMode === 'pool' && driverId) {
