@@ -1,0 +1,1 @@
+ALTER TABLE public.financial_weekly_reports ADD COLUMN entity_name text NOT NULL DEFAULT '';

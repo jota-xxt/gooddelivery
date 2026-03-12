@@ -16,17 +16,46 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Calculate last week's date range (Monday to Sunday)
-    const now = new Date()
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const dayOfWeek = today.getDay()
-    const lastMonday = new Date(today)
-    lastMonday.setDate(today.getDate() - dayOfWeek - 6) // last Monday
-    const lastSunday = new Date(lastMonday)
-    lastSunday.setDate(lastMonday.getDate() + 6)
+    // Accept optional week_start for backfill
+    let requestedWeekStart: string | null = null
+    try {
+      const body = await req.json()
+      if (body?.week_start) requestedWeekStart = body.week_start
+    } catch { /* no body or invalid json, use default */ }
 
-    const weekStart = lastMonday.toISOString().split('T')[0]
-    const weekEnd = lastSunday.toISOString().split('T')[0]
+    let weekStart: string
+    let weekEnd: string
+
+    if (requestedWeekStart) {
+      // Use provided week_start (must be a Monday)
+      const ws = new Date(requestedWeekStart + 'T00:00:00Z')
+      if (ws.getUTCDay() !== 1) {
+        return new Response(
+          JSON.stringify({ error: 'week_start must be a Monday (YYYY-MM-DD)' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      weekStart = requestedWeekStart
+      const we = new Date(ws)
+      we.setUTCDate(ws.getUTCDate() + 6)
+      weekEnd = we.toISOString().split('T')[0]
+    } else {
+      // Calculate last complete week (Monday to Sunday)
+      const now = new Date()
+      const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+      const dayOfWeek = today.getUTCDay() // 0=Sun, 1=Mon, ...
+
+      // Find Monday of current week, then go back 7 days for last Monday
+      const mondayThisWeek = new Date(today)
+      mondayThisWeek.setUTCDate(today.getUTCDate() - ((dayOfWeek + 6) % 7))
+      const lastMonday = new Date(mondayThisWeek)
+      lastMonday.setUTCDate(mondayThisWeek.getUTCDate() - 7)
+      const lastSunday = new Date(lastMonday)
+      lastSunday.setUTCDate(lastMonday.getUTCDate() + 6)
+
+      weekStart = lastMonday.toISOString().split('T')[0]
+      weekEnd = lastSunday.toISOString().split('T')[0]
+    }
 
     // Check if report already exists for this week
     const { data: existing } = await supabase
@@ -50,10 +79,10 @@ Deno.serve(async (req) => {
       .single()
     const feePercent = Number(settings?.value ?? 10)
 
-    // Fetch completed deliveries from last week
-    const weekStartDate = new Date(weekStart)
-    const weekEndDate = new Date(weekEnd)
-    weekEndDate.setDate(weekEndDate.getDate() + 1) // include full Sunday
+    // Fetch completed deliveries from the target week
+    const weekStartDate = new Date(weekStart + 'T00:00:00Z')
+    const weekEndDate = new Date(weekEnd + 'T00:00:00Z')
+    weekEndDate.setUTCDate(weekEndDate.getUTCDate() + 1) // include full Sunday
 
     const { data: deliveries, error: delError } = await supabase
       .from('deliveries')
@@ -70,13 +99,13 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Get establishments and drivers for user_id mapping
+    // Get establishments and drivers with names
     const estIds = [...new Set(deliveries.map(d => d.establishment_id))]
     const driverIds = [...new Set(deliveries.filter(d => d.driver_id).map(d => d.driver_id!))]
 
     const { data: establishments } = await supabase
       .from('establishments')
-      .select('id, user_id')
+      .select('id, user_id, business_name')
       .in('id', estIds)
 
     const { data: drivers } = await supabase
@@ -85,7 +114,22 @@ Deno.serve(async (req) => {
       .in('id', driverIds.length > 0 ? driverIds : ['00000000-0000-0000-0000-000000000000'])
 
     const estUserMap = new Map(establishments?.map(e => [e.id, e.user_id]) ?? [])
+    const estNameMap = new Map(establishments?.map(e => [e.id, e.business_name]) ?? [])
     const driverUserMap = new Map(drivers?.map(d => [d.id, d.user_id]) ?? [])
+
+    // Resolve driver names from profiles
+    let driverNameMap = new Map<string, string>()
+    if (drivers && drivers.length > 0) {
+      const userIds = drivers.map(d => d.user_id)
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, full_name')
+        .in('user_id', userIds)
+      const profileMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) ?? [])
+      for (const d of drivers) {
+        driverNameMap.set(d.id, profileMap.get(d.user_id) ?? 'Entregador')
+      }
+    }
 
     // Group by establishment
     const estGroups: Record<string, { total: number; count: number }> = {}
@@ -93,12 +137,10 @@ Deno.serve(async (req) => {
     const driverGroups: Record<string, { total: number; count: number }> = {}
 
     for (const d of deliveries) {
-      // Establishment grouping
       if (!estGroups[d.establishment_id]) estGroups[d.establishment_id] = { total: 0, count: 0 }
       estGroups[d.establishment_id].total += Number(d.delivery_fee)
       estGroups[d.establishment_id].count += 1
 
-      // Driver grouping
       if (d.driver_id) {
         if (!driverGroups[d.driver_id]) driverGroups[d.driver_id] = { total: 0, count: 0 }
         driverGroups[d.driver_id].total += Number(d.delivery_fee)
@@ -117,6 +159,7 @@ Deno.serve(async (req) => {
         week_end: weekEnd,
         entity_type: 'establishment',
         entity_id: estId,
+        entity_name: estNameMap.get(estId) ?? 'Estabelecimento',
         user_id: userId,
         total_deliveries: g.count,
         total_value: g.total,
@@ -134,6 +177,7 @@ Deno.serve(async (req) => {
         week_end: weekEnd,
         entity_type: 'driver',
         entity_id: driverId,
+        entity_name: driverNameMap.get(driverId) ?? 'Entregador',
         user_id: userId,
         total_deliveries: g.count,
         total_value: g.total,
