@@ -495,6 +495,7 @@ const DriverHome = () => {
             position={queuePosition}
             totalDrivers={totalOnlineDrivers}
             searchingCount={searchingCount}
+            queueDrivers={queueDrivers}
           />
         )}
 
