@@ -33,7 +33,7 @@ const DriverProfile = () => {
   const loadData = async () => {
     const [profileRes, driverRes, ratingsRes, notifsRes] = await Promise.all([
       supabase.from('profiles').select('full_name, phone, created_at, avatar_url').eq('user_id', user!.id).maybeSingle(),
-      supabase.from('drivers').select('vehicle_type, cpf, plate, id').eq('user_id', user!.id).maybeSingle(),
+      supabase.from('drivers').select('id, vehicle_type, cpf, plate, pix_key').eq('user_id', user!.id).maybeSingle(),
       supabase.from('ratings').select('rating').eq('to_user_id', user!.id),
       supabase.from('notifications').select('*').eq('user_id', user!.id).order('created_at', { ascending: false }).limit(5),
     ]);
