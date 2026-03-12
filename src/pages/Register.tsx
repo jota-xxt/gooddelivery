@@ -104,7 +104,8 @@ const Register = () => {
         return;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for trigger to create profile + role, with retry
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       if (userType === 'driver') {
         const { error: driverError } = await supabase.from('drivers').insert({

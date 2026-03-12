@@ -61,17 +61,17 @@ const DriverHome = () => {
   useEffect(() => {
     if (!user) return;
     Promise.all([
-      supabase.from('drivers').select('id, is_online, blocked_until').eq('user_id', user.id).maybeSingle(),
+      supabase.from('drivers').select('id, is_online, blocked_until, queue_joined_at').eq('user_id', user.id).maybeSingle(),
       supabase.from('app_settings').select('value').eq('key', 'delivery_mode').maybeSingle(),
     ]).then(async ([{ data: driverData }, { data: modeData }]) => {
       const mode = (modeData?.value as 'pool' | 'queue') ?? 'pool';
       if (driverData) {
         setDriverId(driverData.id);
         setIsOnline(driverData.is_online);
-        setBlockedUntil((driverData as any).blocked_until ?? null);
+        setBlockedUntil(driverData.blocked_until ?? null);
         // Fix: if driver is online in queue mode but queue_joined_at is null, set it
-        if (driverData.is_online && mode === 'queue' && !(driverData as any).queue_joined_at) {
-          await supabase.from('drivers').update({ queue_joined_at: new Date().toISOString() } as any).eq('id', driverData.id);
+        if (driverData.is_online && mode === 'queue' && !driverData.queue_joined_at) {
+          await supabase.from('drivers').update({ queue_joined_at: new Date().toISOString() }).eq('id', driverData.id);
         }
       }
       if (modeData) setDeliveryMode(mode);
@@ -93,7 +93,7 @@ const DriverHome = () => {
         setBlockCountdown(null);
         // Clear blocked_until in DB
         if (driverId) {
-          supabase.from('drivers').update({ blocked_until: null } as any).eq('id', driverId).then(() => {});
+          supabase.from('drivers').update({ blocked_until: null }).eq('id', driverId).then(() => {});
         }
         return;
       }
@@ -258,8 +258,8 @@ const DriverHome = () => {
         ...active,
         establishment_name: est?.business_name,
         establishment_address: est?.address,
-        establishment_lat: (est as any)?.latitude,
-        establishment_lng: (est as any)?.longitude,
+        establishment_lat: est?.latitude,
+        establishment_lng: est?.longitude,
       });
       setAvailableDeliveries([]);
       return;
@@ -342,11 +342,11 @@ const DriverHome = () => {
           toast.info(newMode === 'queue' ? 'Modo alterado para Fila' : 'Modo alterado para Pool Aberto');
           // If switching to queue and driver is already online, set queue_joined_at
           if (newMode === 'queue' && isOnline && driverId) {
-            await supabase.from('drivers').update({ queue_joined_at: new Date().toISOString() } as any).eq('id', driverId);
+            await supabase.from('drivers').update({ queue_joined_at: new Date().toISOString() }).eq('id', driverId);
           }
           // If switching to pool, clear queue_joined_at
           if (newMode === 'pool' && driverId) {
-            await supabase.from('drivers').update({ queue_joined_at: null } as any).eq('id', driverId);
+            await supabase.from('drivers').update({ queue_joined_at: null }).eq('id', driverId);
           }
         }
       })
@@ -364,14 +364,14 @@ const DriverHome = () => {
     }
     setTogglingOnline(true);
     const newStatus = !isOnline;
-    const updateData: Record<string, unknown> = { is_online: newStatus };
+    const updateData: { is_online: boolean; queue_joined_at?: string | null } = { is_online: newStatus };
     if (newStatus && deliveryMode === 'queue') {
       updateData.queue_joined_at = new Date().toISOString();
     }
     if (!newStatus) {
       updateData.queue_joined_at = null;
     }
-    const { error } = await supabase.from('drivers').update(updateData as any).eq('id', driverId);
+    const { error } = await supabase.from('drivers').update(updateData).eq('id', driverId);
     setTogglingOnline(false);
     if (error) { toast.error('Erro ao alterar status'); return; }
     setIsOnline(newStatus);
