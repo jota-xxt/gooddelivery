@@ -278,10 +278,91 @@ const AdminFinancial = () => {
           <p className="text-sm text-muted-foreground">Taxa da plataforma: {feePercent}%</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={generateReport} disabled={generating} className="gap-1.5">
-            <RefreshCw className={`h-3.5 w-3.5 ${generating ? 'animate-spin' : ''}`} />
-            {generating ? 'Gerando...' : 'Gerar Relatório'}
-          </Button>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline" className="gap-1.5">
+                <Calendar className="h-3.5 w-3.5" />
+                Gerar Relatório
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Gerar Relatório por Período</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <p className="text-sm text-muted-foreground">
+                  Selecione o período para consolidar as entregas completadas.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Data Início</Label>
+                    <Input
+                      type="date"
+                      value={reportDateStart}
+                      onChange={e => setReportDateStart(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Data Fim</Label>
+                    <Input
+                      type="date"
+                      value={reportDateEnd}
+                      onChange={e => setReportDateEnd(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: 'Semana passada', fn: () => {
+                      const now = new Date();
+                      const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+                      const dayOfWeek = today.getUTCDay();
+                      const mondayThisWeek = new Date(today);
+                      mondayThisWeek.setUTCDate(today.getUTCDate() - ((dayOfWeek + 6) % 7));
+                      const lastMonday = new Date(mondayThisWeek);
+                      lastMonday.setUTCDate(mondayThisWeek.getUTCDate() - 7);
+                      const lastSunday = new Date(lastMonday);
+                      lastSunday.setUTCDate(lastMonday.getUTCDate() + 6);
+                      setReportDateStart(lastMonday.toISOString().split('T')[0]);
+                      setReportDateEnd(lastSunday.toISOString().split('T')[0]);
+                    }},
+                    { label: 'Semana atual', fn: () => {
+                      const now = new Date();
+                      const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+                      const dayOfWeek = today.getUTCDay();
+                      const mondayThisWeek = new Date(today);
+                      mondayThisWeek.setUTCDate(today.getUTCDate() - ((dayOfWeek + 6) % 7));
+                      setReportDateStart(mondayThisWeek.toISOString().split('T')[0]);
+                      setReportDateEnd(today.toISOString().split('T')[0]);
+                    }},
+                    { label: 'Últimos 30 dias', fn: () => {
+                      const now = new Date();
+                      const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+                      const thirtyAgo = new Date(today);
+                      thirtyAgo.setUTCDate(today.getUTCDate() - 30);
+                      setReportDateStart(thirtyAgo.toISOString().split('T')[0]);
+                      setReportDateEnd(today.toISOString().split('T')[0]);
+                    }},
+                  ].map(preset => (
+                    <Button key={preset.label} type="button" variant="outline" size="sm" className="text-xs h-7" onClick={preset.fn}>
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="ghost" size="sm">Cancelar</Button>
+                </DialogClose>
+                <Button size="sm" onClick={generateReport} disabled={generating || !reportDateStart || !reportDateEnd} className="gap-1.5">
+                  <RefreshCw className={`h-3.5 w-3.5 ${generating ? 'animate-spin' : ''}`} />
+                  {generating ? 'Gerando...' : 'Gerar'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           {pendingCount > 0 && (
             <Badge variant="destructive" className="gap-1">
               <AlertCircle className="h-3 w-3" /> {pendingCount}
