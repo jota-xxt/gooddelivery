@@ -617,11 +617,33 @@ const AdminFinancial = () => {
 
           <Tabs defaultValue="establishments">
             <TabsList className="w-full sm:w-auto">
-              <TabsTrigger value="establishments" className="flex-1 sm:flex-none text-xs">Estabelecimentos</TabsTrigger>
-              <TabsTrigger value="drivers" className="flex-1 sm:flex-none text-xs">Entregadores</TabsTrigger>
+              <TabsTrigger value="establishments" className="flex-1 sm:flex-none text-xs">💰 A Cobrar</TabsTrigger>
+              <TabsTrigger value="drivers" className="flex-1 sm:flex-none text-xs">💸 Repasses</TabsTrigger>
             </TabsList>
-            <TabsContent value="establishments"><ReportTable data={estReports} markAsPaid={markAsPaid} exportCSV={exportCSV} type="establishment" /></TabsContent>
-            <TabsContent value="drivers"><ReportTable data={driverReports} markAsPaid={markAsPaid} exportCSV={exportCSV} type="driver" /></TabsContent>
+            <TabsContent value="establishments">
+              <GroupedTable
+                groups={estGroups}
+                type="establishment"
+                expandedEntity={expandedEntity}
+                setExpandedEntity={setExpandedEntity}
+                markAsPaid={markAsPaid}
+                markAllAsPaid={markAllAsPaid}
+                exportCSV={exportCSV}
+                formatWeek={formatWeek}
+              />
+            </TabsContent>
+            <TabsContent value="drivers">
+              <GroupedTable
+                groups={driverGroups}
+                type="driver"
+                expandedEntity={expandedEntity}
+                setExpandedEntity={setExpandedEntity}
+                markAsPaid={markAsPaid}
+                markAllAsPaid={markAllAsPaid}
+                exportCSV={exportCSV}
+                formatWeek={formatWeek}
+              />
+            </TabsContent>
           </Tabs>
         </>
       )}
@@ -642,61 +664,117 @@ const AdminFinancial = () => {
   );
 };
 
-const ReportTable = ({ data, type, markAsPaid, exportCSV }: {
-  data: WeeklyReport[];
+/* ─── Grouped Table Component ─── */
+const GroupedTable = ({ groups, type, expandedEntity, setExpandedEntity, markAsPaid, markAllAsPaid, exportCSV, formatWeek }: {
+  groups: GroupedEntity[];
   type: string;
+  expandedEntity: string | null;
+  setExpandedEntity: (id: string | null) => void;
   markAsPaid: (id: string) => void;
+  markAllAsPaid: (ids: string[]) => void;
   exportCSV: (data: WeeklyReport[], filename: string) => void;
-}) => (
-  <Card>
-    <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
-      <CardTitle className="text-sm">{type === 'establishment' ? 'Estabelecimentos' : 'Entregadores'}</CardTitle>
-      <Button variant="outline" size="sm" onClick={() => exportCSV(data, `relatorio-${type}`)} className="h-7 text-xs gap-1">
-        <Download className="h-3 w-3" /> CSV
-      </Button>
-    </CardHeader>
-    <CardContent className="p-0 overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="text-xs">Nome</TableHead>
-            <TableHead className="text-right text-xs">Entregas</TableHead>
-            <TableHead className="text-right text-xs hidden sm:table-cell">Bruto</TableHead>
-            <TableHead className="text-right text-xs hidden sm:table-cell">Taxa</TableHead>
-            <TableHead className="text-right text-xs">Líquido</TableHead>
-            <TableHead className="text-center text-xs">Status</TableHead>
-            <TableHead className="text-center text-xs w-10"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.map(row => (
-            <TableRow key={row.id}>
-              <TableCell className="text-xs font-medium max-w-[120px] truncate">{row.entity_name}</TableCell>
-              <TableCell className="text-right text-xs">{row.total_deliveries}</TableCell>
-              <TableCell className="text-right text-xs hidden sm:table-cell">R$ {row.total_value.toFixed(2)}</TableCell>
-              <TableCell className="text-right text-xs hidden sm:table-cell">R$ {row.platform_fee.toFixed(2)}</TableCell>
-              <TableCell className="text-right text-xs font-medium">R$ {row.net_payout.toFixed(2)}</TableCell>
-              <TableCell className="text-center">
-                <Badge variant={row.status === 'paid' ? 'default' : 'secondary'} className="text-[10px]">
-                  {row.status === 'paid' ? 'Pago' : 'Pendente'}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-center">
-                {row.status === 'pending' && (
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => markAsPaid(row.id)}>
-                    <CheckCircle className="h-3.5 w-3.5 text-green-600" />
-                  </Button>
-                )}
-              </TableCell>
-            </TableRow>
-          ))}
-          {data.length === 0 && (
-            <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8 text-xs">Nenhum relatório</TableCell></TableRow>
+  formatWeek: (ws: string) => string;
+}) => {
+  const allPendingIds = groups.flatMap(g => g.pendingIds);
+  const allReports = groups.flatMap(g => g.reports);
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
+        <CardTitle className="text-sm">
+          {type === 'establishment' ? 'Cobranças de Estabelecimentos' : 'Repasses para Entregadores'}
+          <span className="text-muted-foreground font-normal ml-2">({groups.length})</span>
+        </CardTitle>
+        <div className="flex gap-2">
+          {allPendingIds.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => markAllAsPaid(allPendingIds)} className="h-7 text-xs gap-1">
+              <CheckCircle className="h-3 w-3" /> Marcar todos como pago
+            </Button>
           )}
-        </TableBody>
-      </Table>
-    </CardContent>
-  </Card>
-);
+          <Button variant="outline" size="sm" onClick={() => exportCSV(allReports, `relatorio-${type}`)} className="h-7 text-xs gap-1">
+            <Download className="h-3 w-3" /> CSV
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0 overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-xs">Nome</TableHead>
+              {type === 'driver' && <TableHead className="text-xs hidden sm:table-cell">PIX</TableHead>}
+              <TableHead className="text-right text-xs">Entregas</TableHead>
+              <TableHead className="text-right text-xs hidden sm:table-cell">Bruto</TableHead>
+              <TableHead className="text-right text-xs hidden sm:table-cell">Taxa</TableHead>
+              <TableHead className="text-right text-xs">{type === 'establishment' ? 'A Cobrar' : 'Repasse'}</TableHead>
+              <TableHead className="text-center text-xs">Status</TableHead>
+              <TableHead className="text-center text-xs w-10"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {groups.map(g => (
+              <>
+                <TableRow
+                  key={g.entity_id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => setExpandedEntity(expandedEntity === g.entity_id ? null : g.entity_id)}
+                >
+                  <TableCell className="text-xs font-medium max-w-[140px] truncate">{g.entity_name}</TableCell>
+                  {type === 'driver' && (
+                    <TableCell className="text-xs hidden sm:table-cell max-w-[120px] truncate text-muted-foreground">
+                      {g.pix_key || <span className="text-destructive">Sem PIX</span>}
+                    </TableCell>
+                  )}
+                  <TableCell className="text-right text-xs">{g.total_deliveries}</TableCell>
+                  <TableCell className="text-right text-xs hidden sm:table-cell">R$ {g.total_value.toFixed(2)}</TableCell>
+                  <TableCell className="text-right text-xs hidden sm:table-cell">R$ {g.platform_fee.toFixed(2)}</TableCell>
+                  <TableCell className="text-right text-xs font-bold">R$ {g.net_payout.toFixed(2)}</TableCell>
+                  <TableCell className="text-center">
+                    <Badge variant={g.allPaid ? 'default' : 'secondary'} className="text-[10px]">
+                      {g.allPaid ? 'Pago' : 'Pendente'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {g.pendingIds.length > 0 && (
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={(e) => { e.stopPropagation(); markAllAsPaid(g.pendingIds); }}>
+                        <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+                {expandedEntity === g.entity_id && g.reports.map(r => (
+                  <TableRow key={r.id} className="bg-muted/30">
+                    <TableCell className="text-[10px] text-muted-foreground pl-6">
+                      {formatWeek(r.week_start)} — {format(new Date(r.week_end + 'T00:00:00'), 'dd/MM', { locale: ptBR })}
+                    </TableCell>
+                    {type === 'driver' && <TableCell className="hidden sm:table-cell" />}
+                    <TableCell className="text-right text-[10px]">{r.total_deliveries}</TableCell>
+                    <TableCell className="text-right text-[10px] hidden sm:table-cell">R$ {r.total_value.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-[10px] hidden sm:table-cell">R$ {r.platform_fee.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-[10px]">R$ {r.net_payout.toFixed(2)}</TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant={r.status === 'paid' ? 'default' : 'outline'} className="text-[9px]">
+                        {r.status === 'paid' ? 'Pago' : 'Pendente'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      {r.status === 'pending' && (
+                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => markAsPaid(r.id)}>
+                          <CheckCircle className="h-3 w-3 text-green-600" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </>
+            ))}
+            {groups.length === 0 && (
+              <TableRow><TableCell colSpan={type === 'driver' ? 8 : 7} className="text-center text-muted-foreground py-8 text-xs">Nenhum relatório</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+};
 
 export default AdminFinancial;
