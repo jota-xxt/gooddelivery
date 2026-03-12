@@ -346,7 +346,7 @@ const DriverHome = () => {
           }
           // If switching to pool, clear queue_joined_at
           if (newMode === 'pool' && driverId) {
-            await supabase.from('drivers').update({ queue_joined_at: null } as any).eq('id', driverId);
+            await supabase.from('drivers').update({ queue_joined_at: null }).eq('id', driverId);
           }
         }
       })
