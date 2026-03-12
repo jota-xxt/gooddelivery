@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDeliveryActions } from '@/hooks/useDeliveryActions';
 import { type MapMarker } from '@/components/MapPicker';
-import DriverQueueVisual from '@/components/DriverQueueVisual';
+import DriverQueueVisual, { type QueueDriver } from '@/components/DriverQueueVisual';
 import ActiveDeliveryCard from '@/components/driver/ActiveDeliveryCard';
 import QueueOfferCard from '@/components/driver/QueueOfferCard';
 import PoolDeliveriesList from '@/components/driver/PoolDeliveriesList';
@@ -70,6 +70,7 @@ const DriverHome = () => {
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
   const [totalOnlineDrivers, setTotalOnlineDrivers] = useState(0);
   const [searchingCount, setSearchingCount] = useState(0);
+  const [queueDrivers, setQueueDrivers] = useState<QueueDriver[]>([]);
   const [currentOffer, setCurrentOffer] = useState<DeliveryOffer | null>(null);
   const [offerTimer, setOfferTimer] = useState(60);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -167,16 +168,29 @@ const DriverHome = () => {
       setQueuePosition(null);
       setTotalOnlineDrivers(0);
       setSearchingCount(0);
+      setQueueDrivers([]);
       return;
     }
     const [driversRes, searchingRes] = await Promise.all([
-      supabase.from('drivers').select('id').eq('is_online', true).not('queue_joined_at', 'is', null).order('queue_joined_at', { ascending: true }),
+      supabase.from('drivers').select('id, user_id').eq('is_online', true).not('queue_joined_at', 'is', null).order('queue_joined_at', { ascending: true }),
       supabase.from('deliveries').select('id', { count: 'exact', head: true }).eq('status', 'searching'),
     ]);
     if (driversRes.data) {
       const pos = driversRes.data.findIndex(d => d.id === driverId);
       setQueuePosition(pos >= 0 ? pos + 1 : null);
       setTotalOnlineDrivers(driversRes.data.length);
+
+      // Fetch names for all queued drivers
+      const userIds = driversRes.data.map(d => d.user_id);
+      const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', userIds);
+      const nameMap = new Map(profiles?.map(p => [p.user_id, p.full_name]) ?? []);
+
+      setQueueDrivers(driversRes.data.map((d, i) => ({
+        id: d.id,
+        name: nameMap.get(d.user_id) ?? 'Entregador',
+        position: i + 1,
+        isMe: d.id === driverId,
+      })));
     }
     setSearchingCount(searchingRes.count ?? 0);
   }, [driverId, deliveryMode, isOnline]);
@@ -481,6 +495,7 @@ const DriverHome = () => {
             position={queuePosition}
             totalDrivers={totalOnlineDrivers}
             searchingCount={searchingCount}
+            queueDrivers={queueDrivers}
           />
         )}
 
