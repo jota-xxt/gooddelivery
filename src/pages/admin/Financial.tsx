@@ -5,15 +5,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import {
   Download, DollarSign, TrendingUp, Truck, CheckCircle, BarChart3,
   Search, AlertCircle, RefreshCw, Receipt, Calendar, ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfMonth, startOfWeek, subDays } from 'date-fns';
+import { format, startOfMonth, startOfWeek, subDays, startOfDay, endOfDay, addDays, previousMonday, isBefore } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 
