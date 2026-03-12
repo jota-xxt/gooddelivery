@@ -712,7 +712,7 @@ const GroupedTable = ({ groups, type, expandedEntity, setExpandedEntity, markAsP
           </TableHeader>
           <TableBody>
             {groups.map(g => (
-              <>
+              <React.Fragment key={g.entity_id}>
                 <TableRow
                   key={g.entity_id}
                   className="cursor-pointer hover:bg-muted/50"
