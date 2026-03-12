@@ -297,7 +297,14 @@ const AdminFinancial = () => {
     toast({ title: 'Marcado como pago' });
   };
 
-  const exportCSV = (data: WeeklyReport[], filename: string) => {
+  const markAllAsPaid = async (pendingIds: string[]) => {
+    if (pendingIds.length === 0) return;
+    const { error } = await supabase.from('financial_weekly_reports').update({ status: 'paid' }).in('id', pendingIds);
+    if (error) { toast({ title: 'Erro', description: error.message, variant: 'destructive' }); return; }
+    setReports(prev => prev.map(r => pendingIds.includes(r.id) ? { ...r, status: 'paid' } : r));
+    toast({ title: `${pendingIds.length} relatório(s) marcado(s) como pago` });
+  };
+
     const header = 'Nome,Tipo,Semana,Entregas,Valor Total,Taxa Plataforma,Repasse Líquido,Status\n';
     const rows = data.map(r =>
       `"${r.entity_name}","${r.entity_type}","${r.week_start} a ${r.week_end}",${r.total_deliveries},${r.total_value.toFixed(2)},${r.platform_fee.toFixed(2)},${r.net_payout.toFixed(2)},"${r.status}"`
