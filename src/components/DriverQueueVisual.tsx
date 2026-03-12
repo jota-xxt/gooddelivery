@@ -1,17 +1,23 @@
-import { Users, User, Clock, TrendingUp } from 'lucide-react';
+import { Users, User, Clock, TrendingUp, Crown } from 'lucide-react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+
+export interface QueueDriver {
+  id: string;
+  name: string;
+  position: number;
+  isMe: boolean;
+}
 
 interface DriverQueueVisualProps {
   position: number | null;
   totalDrivers: number;
   searchingCount: number;
+  queueDrivers: QueueDriver[];
 }
 
-const DriverQueueVisual = ({ position, totalDrivers, searchingCount }: DriverQueueVisualProps) => {
+const DriverQueueVisual = ({ position, totalDrivers, searchingCount, queueDrivers }: DriverQueueVisualProps) => {
   if (position === null) return null;
-
-  const maxDots = Math.min(totalDrivers, 9);
-  const showEllipsis = totalDrivers > 9;
-  const myDotIndex = position - 1;
 
   return (
     <div className="rounded-2xl border bg-card overflow-hidden">
@@ -46,43 +52,61 @@ const DriverQueueVisual = ({ position, totalDrivers, searchingCount }: DriverQue
         </p>
       </div>
 
-      {/* Visual queue strip */}
-      <div className="px-4 pb-4">
-        <div className="flex items-center justify-center gap-1.5">
-          {Array.from({ length: maxDots }).map((_, i) => {
-            const isMe = i === Math.min(myDotIndex, maxDots - 1);
-            const isAhead = i < Math.min(myDotIndex, maxDots - 1);
+      {/* Driver list */}
+      {queueDrivers.length > 0 && (
+        <div className="px-4 pb-4">
+          <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Ordem na fila</p>
+          <ScrollArea className="max-h-[240px]">
+            <div className="space-y-1.5">
+              {queueDrivers.map((driver) => {
+                const initials = driver.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+                const firstName = driver.name.split(' ')[0];
+                return (
+                  <div
+                    key={driver.id}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-xl transition-all ${
+                      driver.isMe
+                        ? 'bg-primary/10 border border-primary/30 ring-1 ring-primary/20'
+                        : 'bg-muted/40'
+                    }`}
+                  >
+                    {/* Position number */}
+                    <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                      driver.position === 1
+                        ? 'bg-amber-500 text-white'
+                        : driver.isMe
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted-foreground/20 text-muted-foreground'
+                    }`}>
+                      {driver.position === 1 ? <Crown className="h-3.5 w-3.5" /> : driver.position}
+                    </div>
 
-            return (
-              <div key={i} className="flex flex-col items-center gap-1">
-                <div
-                  className={`
-                    rounded-full transition-all duration-500 flex items-center justify-center
-                    ${isMe
-                      ? 'h-9 w-9 bg-primary ring-2 ring-primary/30 ring-offset-2 ring-offset-background shadow-md'
-                      : isAhead
-                        ? 'h-7 w-7 bg-muted-foreground/60'
-                        : 'h-7 w-7 bg-muted-foreground/20'
-                    }
-                  `}
-                >
-                  {isMe ? (
-                    <User className="h-4 w-4 text-primary-foreground" />
-                  ) : (
-                    <User className={`h-3 w-3 ${isAhead ? 'text-background/80' : 'text-muted-foreground/50'}`} />
-                  )}
-                </div>
-                {isMe && (
-                  <span className="text-[9px] font-bold text-primary">Você</span>
-                )}
-              </div>
-            );
-          })}
-          {showEllipsis && (
-            <span className="text-xs text-muted-foreground font-bold ml-1">+{totalDrivers - 9}</span>
-          )}
+                    {/* Avatar */}
+                    <Avatar className={`h-8 w-8 shrink-0 ${driver.isMe ? 'ring-2 ring-primary' : ''}`}>
+                      <AvatarFallback className={`text-[10px] font-bold ${
+                        driver.isMe ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {initials || '?'}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    {/* Name */}
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium truncate ${driver.isMe ? 'text-primary' : 'text-foreground'}`}>
+                        {driver.isMe ? `${firstName} (Você)` : firstName}
+                      </p>
+                    </div>
+
+                    {/* Status indicator */}
+                    <div className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
+                  </div>
+                );
+              })}
+            </div>
+            <ScrollBar orientation="vertical" />
+          </ScrollArea>
         </div>
-      </div>
+      )}
 
       {/* Stats bar */}
       <div className="border-t bg-muted/30 px-4 py-2.5 flex items-center justify-around">
