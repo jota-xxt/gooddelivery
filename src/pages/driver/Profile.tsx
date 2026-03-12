@@ -3,17 +3,22 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import AvatarUpload from '@/components/AvatarUpload';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Star, Phone, CreditCard, Bike, Car, Truck, Calendar, Package, Bell, LogOut } from 'lucide-react';
+import { Star, Phone, CreditCard, Bike, Car, Truck, Calendar, Package, Bell, LogOut, QrCode, Save } from 'lucide-react';
 import { PushNotificationToggle } from '@/components/PushNotificationToggle';
+import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 const DriverProfile = () => {
   const { user, signOut } = useAuth();
+  const { toast } = useToast();
   const [profile, setProfile] = useState<{ full_name: string; phone: string; created_at: string; avatar_url: string | null } | null>(null);
-  const [driver, setDriver] = useState<{ vehicle_type: string; cpf: string; plate: string | null } | null>(null);
+  const [driver, setDriver] = useState<{ id: string; vehicle_type: string; cpf: string; plate: string | null; pix_key: string | null } | null>(null);
+  const [pixKey, setPixKey] = useState('');
+  const [savingPix, setSavingPix] = useState(false);
   const [avgRating, setAvgRating] = useState<number | null>(null);
   const [ratingCount, setRatingCount] = useState(0);
   const [totalDeliveries, setTotalDeliveries] = useState(0);
