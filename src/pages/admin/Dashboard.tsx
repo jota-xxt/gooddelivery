@@ -18,6 +18,8 @@ interface DeliveryRow {
   created_at: string;
   accepted_at: string | null;
   delivered_at: string | null;
+  driver_id: string | null;
+  driver_name?: string;
 }
 
 const statusLabel: Record<string, string> = {
@@ -52,10 +54,10 @@ const AdminDashboard = () => {
       supabase.from('drivers').select('id', { count: 'exact' }).eq('is_online', true),
       supabase.from('establishments').select('id', { count: 'exact' }),
       supabase.from('deliveries')
-        .select('id, customer_name, delivery_address, delivery_fee, status, created_at, accepted_at, delivered_at')
+        .select('id, customer_name, delivery_address, delivery_fee, status, created_at, accepted_at, delivered_at, driver_id, drivers!deliveries_driver_id_fkey(user_id)')
         .order('created_at', { ascending: false }).limit(8),
       supabase.from('deliveries')
-        .select('id, customer_name, delivery_address, delivery_fee, status, created_at, accepted_at, delivered_at')
+        .select('id, customer_name, delivery_address, delivery_fee, status, created_at, accepted_at, delivered_at, driver_id, drivers!deliveries_driver_id_fkey(user_id)')
         .in('status', ['searching', 'accepted', 'collecting', 'delivering'])
         .order('created_at', { ascending: false }),
       supabase.from('profiles').select('id', { count: 'exact' }).eq('status', 'pending'),
@@ -109,8 +111,26 @@ const AdminDashboard = () => {
       });
     }
     setChartData(days);
-    setRecentDeliveries((recent.data ?? []) as DeliveryRow[]);
-    setActiveDeliveries((active.data ?? []) as DeliveryRow[]);
+    // Resolve driver names from profiles
+    const recentRaw = (recent.data ?? []) as any[];
+    const activeRaw = (active.data ?? []) as any[];
+    const allRaw = [...recentRaw, ...activeRaw];
+    const driverUserIds = [...new Set(allRaw.map(d => d.drivers?.user_id).filter(Boolean))];
+    
+    let driverNameMap: Record<string, string> = {};
+    if (driverUserIds.length > 0) {
+      const { data: profiles } = await supabase.from('profiles').select('user_id, full_name').in('user_id', driverUserIds);
+      (profiles ?? []).forEach(p => { driverNameMap[p.user_id] = p.full_name; });
+    }
+
+    const mapDriverName = (d: any): DeliveryRow => ({
+      ...d,
+      driver_name: d.drivers?.user_id ? driverNameMap[d.drivers.user_id] : undefined,
+      drivers: undefined,
+    });
+
+    setRecentDeliveries(recentRaw.map(mapDriverName));
+    setActiveDeliveries(activeRaw.map(mapDriverName));
     setLoading(false);
   }, []);
 
@@ -227,7 +247,7 @@ const AdminDashboard = () => {
             ) : activeDeliveries.map(d => (
               <div key={d.id} className="flex items-center justify-between border-b border-border pb-2 last:border-0">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{d.customer_name}</p>
+                  <p className="text-sm font-medium truncate">{d.driver_name || 'Sem entregador'}</p>
                   <p className="text-xs text-muted-foreground truncate">{d.delivery_address}</p>
                 </div>
                 <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${statusColor[d.status] ?? ''}`}>
@@ -251,7 +271,7 @@ const AdminDashboard = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-muted-foreground">
-                  <th className="text-left p-3 font-medium">Cliente</th>
+                  <th className="text-left p-3 font-medium">Entregador</th>
                   <th className="text-left p-3 font-medium hidden md:table-cell">Endereço</th>
                   <th className="text-right p-3 font-medium">Valor</th>
                   <th className="text-center p-3 font-medium">Status</th>
@@ -261,7 +281,7 @@ const AdminDashboard = () => {
               <tbody>
                 {recentDeliveries.map(d => (
                   <tr key={d.id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
-                    <td className="p-3 font-medium">{d.customer_name}</td>
+                    <td className="p-3 font-medium">{d.driver_name || 'Sem entregador'}</td>
                     <td className="p-3 text-muted-foreground hidden md:table-cell truncate max-w-[200px]">{d.delivery_address}</td>
                     <td className="p-3 text-right">R$ {Number(d.delivery_fee).toFixed(2)}</td>
                     <td className="p-3 text-center">
