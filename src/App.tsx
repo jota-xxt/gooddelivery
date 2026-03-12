@@ -80,6 +80,7 @@ const App = () => (
               <Route path="/register" element={<Register />} />
               <Route path="/pending-approval" element={<PendingApproval />} />
               <Route path="/install" element={<Install />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
               <Route path="/admin" element={
                 <RoleGuard allowedRoles={['admin']}>

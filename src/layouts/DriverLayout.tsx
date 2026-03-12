@@ -83,7 +83,9 @@ const DriverLayout = () => {
         </div>
       </header>
 
-      <Outlet />
+      <ErrorBoundary>
+        <Outlet />
+      </ErrorBoundary>
       <BottomNav items={items} />
     </div>
   );
