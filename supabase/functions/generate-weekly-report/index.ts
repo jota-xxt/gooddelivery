@@ -16,59 +16,66 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Accept optional week_start for backfill
-    let requestedWeekStart: string | null = null
+    // Accept date_start/date_end or week_start for backwards compat
+    let dateStart: string
+    let dateEnd: string
+
     try {
       const body = await req.json()
-      if (body?.week_start) requestedWeekStart = body.week_start
-    } catch { /* no body or invalid json, use default */ }
-
-    let weekStart: string
-    let weekEnd: string
-
-    if (requestedWeekStart) {
-      // Use provided week_start (must be a Monday)
-      const ws = new Date(requestedWeekStart + 'T00:00:00Z')
-      if (ws.getUTCDay() !== 1) {
-        return new Response(
-          JSON.stringify({ error: 'week_start must be a Monday (YYYY-MM-DD)' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+      if (body?.date_start && body?.date_end) {
+        dateStart = body.date_start
+        dateEnd = body.date_end
+      } else if (body?.week_start) {
+        dateStart = body.week_start
+        const ws = new Date(body.week_start + 'T00:00:00Z')
+        const we = new Date(ws)
+        we.setUTCDate(ws.getUTCDate() + 6)
+        dateEnd = we.toISOString().split('T')[0]
+      } else {
+        throw new Error('no dates')
       }
-      weekStart = requestedWeekStart
-      const we = new Date(ws)
-      we.setUTCDate(ws.getUTCDate() + 6)
-      weekEnd = we.toISOString().split('T')[0]
-    } else {
-      // Calculate last complete week (Monday to Sunday)
+    } catch {
+      // Default: last complete week (Monday to Sunday)
       const now = new Date()
       const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-      const dayOfWeek = today.getUTCDay() // 0=Sun, 1=Mon, ...
-
-      // Find Monday of current week, then go back 7 days for last Monday
+      const dayOfWeek = today.getUTCDay()
       const mondayThisWeek = new Date(today)
       mondayThisWeek.setUTCDate(today.getUTCDate() - ((dayOfWeek + 6) % 7))
       const lastMonday = new Date(mondayThisWeek)
       lastMonday.setUTCDate(mondayThisWeek.getUTCDate() - 7)
       const lastSunday = new Date(lastMonday)
       lastSunday.setUTCDate(lastMonday.getUTCDate() + 6)
-
-      weekStart = lastMonday.toISOString().split('T')[0]
-      weekEnd = lastSunday.toISOString().split('T')[0]
+      dateStart = lastMonday.toISOString().split('T')[0]
+      dateEnd = lastSunday.toISOString().split('T')[0]
     }
 
-    // Check if report already exists for this week
+    // Validate dates
+    if (dateStart > dateEnd) {
+      return new Response(
+        JSON.stringify({ error: 'Data início deve ser anterior à data fim' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Use dateStart as the report key (week_start) and dateEnd as week_end
+    const weekStart = dateStart
+    const weekEnd = dateEnd
+
+    // Check if report already exists for this exact period
     const { data: existing } = await supabase
       .from('financial_weekly_reports')
       .select('id')
       .eq('week_start', weekStart)
+      .eq('week_end', weekEnd)
       .limit(1)
 
     if (existing && existing.length > 0) {
-      return new Response(
-        JSON.stringify({ message: 'Reports already generated for this week', weekStart }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      // Delete existing reports for this period so we can regenerate
+      await supabase
+        .from('financial_weekly_reports')
+        .delete()
+        .eq('week_start', weekStart)
+        .eq('week_end', weekEnd)
     }
 
     // Get platform fee
@@ -79,22 +86,22 @@ Deno.serve(async (req) => {
       .single()
     const feePercent = Number(settings?.value ?? 10)
 
-    // Fetch completed deliveries from the target week
-    const weekStartDate = new Date(weekStart + 'T00:00:00Z')
-    const weekEndDate = new Date(weekEnd + 'T00:00:00Z')
-    weekEndDate.setUTCDate(weekEndDate.getUTCDate() + 1) // include full Sunday
+    // Fetch completed deliveries from the target period
+    const startDate = new Date(dateStart + 'T00:00:00Z')
+    const endDate = new Date(dateEnd + 'T00:00:00Z')
+    endDate.setUTCDate(endDate.getUTCDate() + 1) // include full end day
 
     const { data: deliveries, error: delError } = await supabase
       .from('deliveries')
       .select('establishment_id, driver_id, delivery_fee, delivered_at')
       .eq('status', 'completed')
-      .gte('delivered_at', weekStartDate.toISOString())
-      .lt('delivered_at', weekEndDate.toISOString())
+      .gte('delivered_at', startDate.toISOString())
+      .lt('delivered_at', endDate.toISOString())
 
     if (delError) throw delError
     if (!deliveries || deliveries.length === 0) {
       return new Response(
-        JSON.stringify({ message: 'No deliveries for this week', weekStart }),
+        JSON.stringify({ message: 'Nenhuma entrega concluída neste período', weekStart, weekEnd }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -133,7 +140,6 @@ Deno.serve(async (req) => {
 
     // Group by establishment
     const estGroups: Record<string, { total: number; count: number }> = {}
-    // Group by driver
     const driverGroups: Record<string, { total: number; count: number }> = {}
 
     for (const d of deliveries) {
@@ -194,7 +200,12 @@ Deno.serve(async (req) => {
     if (insertError) throw insertError
 
     return new Response(
-      JSON.stringify({ message: 'Reports generated', weekStart, weekEnd, count: rows.length }),
+      JSON.stringify({
+        message: `Relatório gerado: ${deliveries.length} entregas de ${weekStart} a ${weekEnd}`,
+        weekStart,
+        weekEnd,
+        count: rows.length,
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {

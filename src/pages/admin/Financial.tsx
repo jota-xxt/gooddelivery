@@ -5,15 +5,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import {
   Download, DollarSign, TrendingUp, Truck, CheckCircle, BarChart3,
   Search, AlertCircle, RefreshCw, Receipt, Calendar, ArrowUpRight, ArrowDownRight
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfMonth, startOfWeek, subDays } from 'date-fns';
+import { format, startOfMonth, startOfWeek, subDays, startOfDay, endOfDay, addDays, previousMonday, isBefore } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 
@@ -53,6 +55,9 @@ const AdminFinancial = () => {
   const [feePercent, setFeePercent] = useState(10);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [reportDateStart, setReportDateStart] = useState('');
+  const [reportDateEnd, setReportDateEnd] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [summary, setSummary] = useState<DeliverySummary>({
     total: 0, completed: 0, cancelled: 0, searching: 0,
     revenue: 0, todayRevenue: 0, weekRevenue: 0, monthRevenue: 0, dailyData: [],
@@ -162,11 +167,22 @@ const AdminFinancial = () => {
   };
 
   const generateReport = async () => {
+    if (!reportDateStart || !reportDateEnd) {
+      toast({ title: 'Selecione as datas', description: 'Informe a data inicial e final do período.', variant: 'destructive' });
+      return;
+    }
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-weekly-report');
+      const { data, error } = await supabase.functions.invoke('generate-weekly-report', {
+        body: { date_start: reportDateStart, date_end: reportDateEnd },
+      });
       if (error) throw error;
-      toast({ title: 'Relatório gerado', description: data?.message || 'Relatórios semanais atualizados.' });
+      if (data?.error) {
+        toast({ title: 'Erro', description: data.error, variant: 'destructive' });
+      } else {
+        toast({ title: 'Relatório gerado', description: data?.message || 'Relatórios atualizados.' });
+      }
+      setDialogOpen(false);
       await loadReports();
     } catch (err: any) {
       toast({ title: 'Erro ao gerar relatório', description: err.message, variant: 'destructive' });
@@ -262,10 +278,91 @@ const AdminFinancial = () => {
           <p className="text-sm text-muted-foreground">Taxa da plataforma: {feePercent}%</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={generateReport} disabled={generating} className="gap-1.5">
-            <RefreshCw className={`h-3.5 w-3.5 ${generating ? 'animate-spin' : ''}`} />
-            {generating ? 'Gerando...' : 'Gerar Relatório'}
-          </Button>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline" className="gap-1.5">
+                <Calendar className="h-3.5 w-3.5" />
+                Gerar Relatório
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Gerar Relatório por Período</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <p className="text-sm text-muted-foreground">
+                  Selecione o período para consolidar as entregas completadas.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Data Início</Label>
+                    <Input
+                      type="date"
+                      value={reportDateStart}
+                      onChange={e => setReportDateStart(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Data Fim</Label>
+                    <Input
+                      type="date"
+                      value={reportDateEnd}
+                      onChange={e => setReportDateEnd(e.target.value)}
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: 'Semana passada', fn: () => {
+                      const now = new Date();
+                      const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+                      const dayOfWeek = today.getUTCDay();
+                      const mondayThisWeek = new Date(today);
+                      mondayThisWeek.setUTCDate(today.getUTCDate() - ((dayOfWeek + 6) % 7));
+                      const lastMonday = new Date(mondayThisWeek);
+                      lastMonday.setUTCDate(mondayThisWeek.getUTCDate() - 7);
+                      const lastSunday = new Date(lastMonday);
+                      lastSunday.setUTCDate(lastMonday.getUTCDate() + 6);
+                      setReportDateStart(lastMonday.toISOString().split('T')[0]);
+                      setReportDateEnd(lastSunday.toISOString().split('T')[0]);
+                    }},
+                    { label: 'Semana atual', fn: () => {
+                      const now = new Date();
+                      const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+                      const dayOfWeek = today.getUTCDay();
+                      const mondayThisWeek = new Date(today);
+                      mondayThisWeek.setUTCDate(today.getUTCDate() - ((dayOfWeek + 6) % 7));
+                      setReportDateStart(mondayThisWeek.toISOString().split('T')[0]);
+                      setReportDateEnd(today.toISOString().split('T')[0]);
+                    }},
+                    { label: 'Últimos 30 dias', fn: () => {
+                      const now = new Date();
+                      const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+                      const thirtyAgo = new Date(today);
+                      thirtyAgo.setUTCDate(today.getUTCDate() - 30);
+                      setReportDateStart(thirtyAgo.toISOString().split('T')[0]);
+                      setReportDateEnd(today.toISOString().split('T')[0]);
+                    }},
+                  ].map(preset => (
+                    <Button key={preset.label} type="button" variant="outline" size="sm" className="text-xs h-7" onClick={preset.fn}>
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="ghost" size="sm">Cancelar</Button>
+                </DialogClose>
+                <Button size="sm" onClick={generateReport} disabled={generating || !reportDateStart || !reportDateEnd} className="gap-1.5">
+                  <RefreshCw className={`h-3.5 w-3.5 ${generating ? 'animate-spin' : ''}`} />
+                  {generating ? 'Gerando...' : 'Gerar'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           {pendingCount > 0 && (
             <Badge variant="destructive" className="gap-1">
               <AlertCircle className="h-3 w-3" /> {pendingCount}
@@ -476,12 +573,8 @@ const AdminFinancial = () => {
             <Receipt className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
             <p className="text-sm font-medium">Nenhum relatório semanal</p>
             <p className="text-xs text-muted-foreground mt-1 mb-4">
-              Clique em "Gerar Relatório" para consolidar as entregas da última semana.
+              Clique em "Gerar Relatório" acima para consolidar as entregas de um período.
             </p>
-            <Button size="sm" onClick={generateReport} disabled={generating} className="gap-1.5">
-              <RefreshCw className={`h-3.5 w-3.5 ${generating ? 'animate-spin' : ''}`} />
-              Gerar Agora
-            </Button>
           </CardContent>
         </Card>
       )}
