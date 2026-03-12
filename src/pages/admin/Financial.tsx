@@ -33,6 +33,20 @@ interface WeeklyReport {
   entity_name?: string;
 }
 
+interface GroupedEntity {
+  entity_id: string;
+  entity_name: string;
+  entity_type: string;
+  total_deliveries: number;
+  total_value: number;
+  platform_fee: number;
+  net_payout: number;
+  pix_key?: string | null;
+  reports: WeeklyReport[];
+  allPaid: boolean;
+  pendingIds: string[];
+}
+
 interface DeliverySummary {
   total: number;
   completed: number;
